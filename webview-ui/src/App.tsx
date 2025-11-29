@@ -711,10 +711,11 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       (e) => e.type === "fault" || e.type === "fault-end"
     );
 
-    // Handle fault paths - position to the right
+    // Handle fault paths - position to the right (closer to source)
     faultOuts.forEach((edge, i) => {
       if (!visited.has(edge.target)) {
-        layoutNode(edge.target, centerX + COL_WIDTH * (2 + i), row, undefined, new Set(visited));
+        // Position fault nodes closer - just 1.5 columns to the right, stacked vertically if multiple
+        layoutNode(edge.target, centerX + COL_WIDTH * 1.5, row + i, undefined, new Set(visited));
       }
     });
 
@@ -726,32 +727,52 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       const branchTargets = outs.map((e) => e.target);
       const mergePoint = findMergePointForBranches(branchTargets);
 
-      // Sort branches: named outcomes left, default right
+      // Sort branches: Salesforce style - named outcomes/rules on LEFT, default on RIGHT
+      // Rules are listed in order, default is always rightmost
       const sortedOuts = [...outs].sort((a, b) => {
-        const aIsDefault = a.label?.toLowerCase().includes("default") || a.label === "Other";
-        const bIsDefault = b.label?.toLowerCase().includes("default") || b.label === "Other";
-        if (aIsDefault && !bIsDefault) return 1;
-        if (!aIsDefault && bIsDefault) return -1;
-        return 0;
+        const aIsDefault = a.label?.toLowerCase().includes("default") || 
+                           a.label === "Other" || 
+                           a.id?.includes("-def");
+        const bIsDefault = b.label?.toLowerCase().includes("default") || 
+                           b.label === "Other" ||
+                           b.id?.includes("-def");
+        if (aIsDefault && !bIsDefault) return 1;  // Default goes to the right (last)
+        if (!aIsDefault && bIsDefault) return -1; // Non-default goes to the left (first)
+        return 0; // Preserve order for rules
       });
 
-      // Calculate widths of each branch
-      const branchWidths = sortedOuts.map((e) => 
-        Math.max(calculateSubtreeWidth(e.target, mergePoint, new Set(visited)), 1)
-      );
+      // Calculate widths of each branch - ensure minimum width of 1 for each branch
+      // Even branches that go directly to merge need their own column for proper spacing
+      const branchWidths = sortedOuts.map((e) => {
+        const width = calculateSubtreeWidth(e.target, mergePoint, new Set(visited));
+        return Math.max(width, 1); // Each branch needs at least 1 column
+      });
       const totalWidth = branchWidths.reduce((a, b) => a + b, 0);
 
-      // Position branches centered around parent's X
+      // Salesforce-style positioning: branches spread outward from the parent's center
+      // Track branch positions to calculate center for merge point
       let currentX = centerX - (totalWidth * COL_WIDTH) / 2 + COL_WIDTH / 2;
       let maxBranchDepth = 0;
+      let firstBranchCenterX = centerX;
+      let lastBranchCenterX = centerX;
 
       sortedOuts.forEach((edge, idx) => {
         const branchWidth = branchWidths[idx];
         const branchCenterX = currentX + (branchWidth - 1) * COL_WIDTH / 2;
         
-        if (!visited.has(edge.target)) {
+        // Track first and last branch positions for merge point centering
+        if (idx === 0) firstBranchCenterX = branchCenterX;
+        lastBranchCenterX = branchCenterX;
+        
+        // Check if this branch goes directly to the merge point (empty branch)
+        const goesDirectlyToMerge = edge.target === mergePoint;
+        
+        if (!goesDirectlyToMerge && !visited.has(edge.target)) {
+          // Layout the branch nodes normally
           layoutNode(edge.target, branchCenterX, row + 1, mergePoint, new Set(visited));
         }
+        // Note: For branches going directly to merge, we don't layout anything here
+        // The merge point will be laid out later at the center
 
         const branchDepth = calculateBranchDepth(edge.target, mergePoint, new Set(visited));
         maxBranchDepth = Math.max(maxBranchDepth, branchDepth);
@@ -759,9 +780,11 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
         currentX += branchWidth * COL_WIDTH;
       });
 
-      // Layout after merge point
+      // Salesforce behavior: merge point is centered between all branches
+      // This creates the visual pattern where branches converge to the center
       if (mergePoint && !visited.has(mergePoint)) {
-        layoutNode(mergePoint, centerX, row + 1 + maxBranchDepth, stopAt, visited);
+        const mergeCenterX = (firstBranchCenterX + lastBranchCenterX) / 2;
+        layoutNode(mergePoint, mergeCenterX, row + 1 + maxBranchDepth, stopAt, visited);
       }
 
     } else if (nodeType === "LOOP") {
@@ -959,7 +982,7 @@ const App: React.FC = () => {
 
       const edges = edgesBySource.get(nodeId) || [];
       // Filter to only normal branch edges (not fault)
-      const branchEdges = edges.filter(
+      let branchEdges = edges.filter(
         (e) =>
           e.type !== "fault" &&
           e.type !== "fault-end" &&
@@ -967,28 +990,63 @@ const App: React.FC = () => {
       );
 
       if (branchEdges.length > 1 || srcNode.type === "LOOP") {
+        // Sort branches: rules/named on left, default on right (same as layout)
+        if (srcNode.type === "DECISION" || srcNode.type === "WAIT") {
+          branchEdges = [...branchEdges].sort((a, b) => {
+            const aIsDefault = a.label?.toLowerCase().includes("default") || 
+                               a.label === "Other" || 
+                               a.id?.includes("-def");
+            const bIsDefault = b.label?.toLowerCase().includes("default") || 
+                               b.label === "Other" ||
+                               b.id?.includes("-def");
+            if (aIsDefault && !bIsDefault) return 1;
+            if (!aIsDefault && bIsDefault) return -1;
+            return 0;
+          });
+        }
+
         // This is a branching point - draw the horizontal branch line
         const srcCenterX = srcNode.x + srcNode.width / 2;
         const srcBottomY = srcNode.y + srcNode.height;
 
-        // Find all target positions
-        const targetPositions = branchEdges
-          .map((e) => {
-            const tgt = parsedData.nodes.find((n) => n.id === e.target);
-            return tgt ? { edge: e, x: tgt.x + tgt.width / 2, y: tgt.y } : null;
-          })
-          .filter((t): t is NonNullable<typeof t> => t !== null);
+        // Calculate branch positions based on equal spacing, not target positions
+        // This ensures proper visual spread even when branches go directly to merge
+        const numBranches = branchEdges.length;
+        const COL_WIDTH = NODE_WIDTH + GRID_H_GAP; // Same as layout
+        const totalWidth = numBranches * COL_WIDTH;
+        const startX = srcCenterX - totalWidth / 2 + COL_WIDTH / 2;
 
-        if (targetPositions.length > 0) {
+        // Build branch positions - use calculated positions for spread, actual target for Y
+        const branchPositions = branchEdges.map((edge, idx) => {
+          const tgt = parsedData.nodes.find((n) => n.id === edge.target);
+          if (!tgt) return null;
+          
+          // Calculate the X position for this branch based on index (spread evenly)
+          const branchX = startX + idx * COL_WIDTH;
+          
+          // Check if multiple branches go to same target (merge point)
+          // If so, each branch needs its own drop position
+          const isMergeTarget = mergeNodes.has(edge.target);
+          
+          return { 
+            edge, 
+            branchX,  // Where the branch connector drops from
+            targetX: tgt.x + tgt.width / 2,  // Where the target node actually is
+            targetY: tgt.y,
+            isMergeTarget
+          };
+        }).filter((t): t is NonNullable<typeof t> => t !== null);
+
+        if (branchPositions.length > 0) {
           // Calculate branch line Y position (fixed distance from source)
           const branchLineY = srcBottomY + 35;
 
-          // Find leftmost and rightmost branch targets
-          const xs = targetPositions.map((t) => t.x);
-          const minX = Math.min(...xs, srcCenterX);
-          const maxX = Math.max(...xs, srcCenterX);
+          // Find leftmost and rightmost branch drop positions
+          const branchXs = branchPositions.map((t) => t.branchX);
+          const minX = Math.min(...branchXs);
+          const maxX = Math.max(...branchXs);
 
-          // Draw horizontal branch line
+          // Draw horizontal branch line spanning all branches
           rendered.push(
             <path
               key={`branch-line-${nodeId}`}
@@ -1010,34 +1068,144 @@ const App: React.FC = () => {
             />
           );
 
-          // Draw vertical connectors from branch line to each target
-          targetPositions.forEach(({ edge, x, y }) => {
+          // Draw connectors from branch line to each target
+          // Collect merge branch info to draw merge line afterward
+          const mergeBranches: { branchX: number; targetX: number; targetY: number; targetId: string }[] = [];
+          const cornerRadius = 12; // Consistent rounded corners
+          
+          branchPositions.forEach(({ edge, branchX, targetX, targetY, isMergeTarget }) => {
             handledEdges.add(edge.id);
-            rendered.push(
-              <g key={`branch-drop-${edge.id}`}>
-                <path
-                  d={`M ${x} ${branchLineY} L ${x} ${y}`}
-                  fill="none"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  markerEnd="url(#arrow)"
-                />
-                {edge.label && (
-                  <foreignObject
-                    x={x - 60}
-                    y={branchLineY - 22}
-                    width={120}
-                    height={24}
-                    style={{ overflow: "visible" }}
-                  >
-                    <div className="text-[10px] px-2 py-0.5 bg-white text-slate-600 border border-slate-200 rounded-full text-center truncate shadow-sm max-w-[110px] mx-auto">
-                      {edge.label}
-                    </div>
-                  </foreignObject>
-                )}
-              </g>
-            );
+            
+            // If branch goes to a merge point and branch position differs from target,
+            // draw path: down from branchX, then curve to center
+            if (isMergeTarget && Math.abs(branchX - targetX) > 5) {
+              // Calculate merge line Y (above the target)
+              const mergeLineY = targetY - 35;
+              
+              // Collect for merge line drawing
+              mergeBranches.push({ branchX, targetX, targetY, targetId: edge.target });
+              
+              // Direction: left or right toward center
+              const goingRight = targetX > branchX;
+              const sign = goingRight ? 1 : -1;
+              
+              // Draw path with rounded corner at the turn
+              const path = `M ${branchX} ${branchLineY} 
+                           L ${branchX} ${mergeLineY - cornerRadius}
+                           Q ${branchX} ${mergeLineY}, ${branchX + sign * cornerRadius} ${mergeLineY}
+                           L ${targetX} ${mergeLineY}`;
+              
+              rendered.push(
+                <g key={`branch-drop-${edge.id}`}>
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                  />
+                  {/* Label at branch drop point */}
+                  {edge.label && (
+                    <foreignObject
+                      x={branchX - 60}
+                      y={branchLineY - 22}
+                      width={120}
+                      height={24}
+                      style={{ overflow: "visible" }}
+                    >
+                      <div className="text-[10px] px-2 py-0.5 bg-white text-slate-600 border border-slate-200 rounded-full text-center truncate shadow-sm max-w-[110px] mx-auto">
+                        {edge.label}
+                      </div>
+                    </foreignObject>
+                  )}
+                </g>
+              );
+            } else {
+              // Regular branch - check if we need orthogonal routing
+              const dx = targetX - branchX;
+              
+              if (Math.abs(dx) < 5) {
+                // Straight vertical line
+                rendered.push(
+                  <g key={`branch-drop-${edge.id}`}>
+                    <path
+                      d={`M ${branchX} ${branchLineY} L ${targetX} ${targetY}`}
+                      fill="none"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      markerEnd="url(#arrow)"
+                    />
+                    {edge.label && (
+                      <foreignObject
+                        x={branchX - 60}
+                        y={branchLineY - 22}
+                        width={120}
+                        height={24}
+                        style={{ overflow: "visible" }}
+                      >
+                        <div className="text-[10px] px-2 py-0.5 bg-white text-slate-600 border border-slate-200 rounded-full text-center truncate shadow-sm max-w-[110px] mx-auto">
+                          {edge.label}
+                        </div>
+                      </foreignObject>
+                    )}
+                  </g>
+                );
+              } else {
+                // Orthogonal routing with rounded corners
+                const sign = dx > 0 ? 1 : -1;
+                const midY = branchLineY + (targetY - branchLineY) / 2;
+                
+                const path = `M ${branchX} ${branchLineY}
+                             L ${branchX} ${midY - cornerRadius}
+                             Q ${branchX} ${midY}, ${branchX + sign * cornerRadius} ${midY}
+                             L ${targetX - sign * cornerRadius} ${midY}
+                             Q ${targetX} ${midY}, ${targetX} ${midY + cornerRadius}
+                             L ${targetX} ${targetY}`;
+                
+                rendered.push(
+                  <g key={`branch-drop-${edge.id}`}>
+                    <path
+                      d={path}
+                      fill="none"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      markerEnd="url(#arrow)"
+                    />
+                    {edge.label && (
+                      <foreignObject
+                        x={branchX - 60}
+                        y={branchLineY - 22}
+                        width={120}
+                        height={24}
+                        style={{ overflow: "visible" }}
+                      >
+                        <div className="text-[10px] px-2 py-0.5 bg-white text-slate-600 border border-slate-200 rounded-full text-center truncate shadow-sm max-w-[110px] mx-auto">
+                          {edge.label}
+                        </div>
+                      </foreignObject>
+                    )}
+                  </g>
+                );
+              }
+            }
           });
+          
+          // Draw the final arrow from merge line to target for merge branches
+          if (mergeBranches.length > 0) {
+            const { targetX, targetY } = mergeBranches[0];
+            const mergeLineY = targetY - 35;
+            
+            // Draw single arrow from merge line center down to target
+            rendered.push(
+              <path
+                key={`merge-arrow-${nodeId}`}
+                d={`M ${targetX} ${mergeLineY} L ${targetX} ${targetY}`}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth={2}
+                markerEnd="url(#arrow)"
+              />
+            );
+          }
         }
       }
     });
@@ -1057,6 +1225,7 @@ const App: React.FC = () => {
       if (incomingEdges.length > 1) {
         const tgtCenterX = tgtNode.x + tgtNode.width / 2;
         const tgtTopY = tgtNode.y;
+        const cornerRadius = 12;
 
         // Get source positions for unhandled edges
         const sourcePositions = incomingEdges
@@ -1102,18 +1271,39 @@ const App: React.FC = () => {
             />
           );
 
-          // Draw connectors from each source to the merge line
+          // Draw connectors from each source to the merge line with rounded corners
           sourcePositions.forEach(({ edge, x, y }) => {
             handledEdges.add(edge.id);
-            rendered.push(
-              <path
-                key={`merge-drop-${edge.id}`}
-                d={`M ${x} ${y} L ${x} ${mergeLineY}`}
-                fill="none"
-                stroke="#94a3b8"
-                strokeWidth={2}
-              />
-            );
+            const dx = tgtCenterX - x;
+            
+            if (Math.abs(dx) < 5) {
+              // Straight vertical line to merge line
+              rendered.push(
+                <path
+                  key={`merge-drop-${edge.id}`}
+                  d={`M ${x} ${y} L ${x} ${mergeLineY}`}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                />
+              );
+            } else {
+              // Curved path to merge line
+              const sign = dx > 0 ? 1 : -1;
+              const path = `M ${x} ${y}
+                           L ${x} ${mergeLineY - cornerRadius}
+                           Q ${x} ${mergeLineY}, ${x + sign * cornerRadius} ${mergeLineY}`;
+              
+              rendered.push(
+                <path
+                  key={`merge-drop-${edge.id}`}
+                  d={path}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                />
+              );
+            }
           });
         }
       }
@@ -1173,10 +1363,10 @@ const App: React.FC = () => {
       let path: string;
       const showAsRed = isFault || isFaultEnd;
 
-      const FAULT_HORIZONTAL_OFFSET = 60;
+      const FAULT_HORIZONTAL_OFFSET = 40;
 
       if (isFaultEnd) {
-        // Horizontal path for fault-end connectors
+        // Horizontal path for fault-end connectors - straight line
         path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${tgtCenterY}`;
       } else if (isFault) {
         // Fault connectors: exit from right side
@@ -1246,16 +1436,18 @@ const App: React.FC = () => {
       let labelY = srcBottomY + 20;
 
       if (isFault || isFaultEnd) {
-        labelX = srcRightX + 35;
-        labelY = srcCenterY - 18;
+        // Position fault label on the line, centered between source and target
+        labelX = (srcRightX + tgtLeftX) / 2;
+        labelY = srcCenterY - 12;
       } else if (isLoopBack) {
+        // For Each label - position to the left of the loop-back line
         const leftX = Math.min(srcCenterX, tgtCenterX) - 50;
-        labelX = leftX - 30;
+        labelX = leftX - 35;
         labelY = (srcBottomY + tgtTopY) / 2;
       } else if (isLoopEnd) {
-        // After Last label - position below the loop node
-        labelX = srcCenterX;
-        labelY = srcBottomY + 18;
+        // After Last label - position to the right of the loop, not overlapping For Each
+        labelX = srcCenterX + 60;
+        labelY = srcBottomY + 25;
       }
 
       rendered.push(
