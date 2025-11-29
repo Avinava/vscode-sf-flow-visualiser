@@ -325,7 +325,7 @@ function calculateBranchLines(
     const srcBottomY = srcNode.y + srcNode.height;
     const branchLineY = srcBottomY + 35;
 
-    // Calculate branch positions
+    // Calculate branch spread positions from the source node center
     const numBranches = branchEdges.length;
     const totalWidth = numBranches * COL_WIDTH;
     const startX = srcCenterX - totalWidth / 2 + COL_WIDTH / 2;
@@ -337,8 +337,8 @@ function calculateBranchLines(
 
         return {
           edge,
-          branchX: startX + idx * COL_WIDTH,
-          targetX: tgt.x + tgt.width / 2,
+          branchX: startX + idx * COL_WIDTH, // Spread position on branch line
+          targetX: tgt.x + tgt.width / 2, // Actual target position
           targetY: tgt.y,
         };
       })
@@ -396,15 +396,28 @@ function calculateMergeLines(
 
   // Find merge nodes (multiple incoming non-fault edges)
   nodes.forEach((tgtNode) => {
-    const incomingEdges = (edgesByTarget.get(tgtNode.id) || []).filter(
-      (e) =>
-        e.type !== "fault" && e.type !== "fault-end" && !handledEdges.has(e.id)
-    );
-
-    if (incomingEdges.length < 2) return;
+    // Skip loop nodes - they have loop-back edges that shouldn't be merged
+    if (tgtNode.type === "LOOP") return;
 
     const tgtCenterX = tgtNode.x + tgtNode.width / 2;
     const tgtTopY = tgtNode.y;
+
+    const incomingEdges = (edgesByTarget.get(tgtNode.id) || []).filter((e) => {
+      if (e.type === "fault" || e.type === "fault-end") return false;
+      if (handledEdges.has(e.id)) return false;
+
+      // Exclude loop-back edges (source is below target)
+      const src = nodeMap.get(e.source);
+      if (src && src.y + src.height > tgtTopY) {
+        // This is a loop-back edge, exclude it
+        return false;
+      }
+
+      return true;
+    });
+
+    if (incomingEdges.length < 2) return;
+
     const mergeLineY = tgtTopY - 35;
 
     // Get source positions

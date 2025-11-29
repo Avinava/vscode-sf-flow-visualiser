@@ -257,9 +257,10 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
 
     // Parse default connector
     const defConn = el.getElementsByTagName("defaultConnector")[0];
+    const defLabel = getText(el, "defaultConnectorLabel") || "Default Outcome";
+
     if (defConn) {
       const { target, isGoTo } = parseConnector(defConn);
-      const defLabel = getText(el, "defaultConnectorLabel") || "Default";
       if (target) {
         edges.push({
           id: `${name}-${target}-def`,
@@ -270,6 +271,11 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
           isGoTo,
         });
       }
+    } else if (defLabel) {
+      // No default connector but has a label - this means default goes to implicit End
+      // We'll mark this node as having an implicit end on default path
+      node.data.hasImplicitDefaultEnd = true;
+      node.data.defaultConnectorLabel = defLabel;
     }
   }
 
@@ -372,12 +378,40 @@ function generateEndNodes(
     }
   });
 
+  let endNodeCount = 0;
+
+  // Handle Decision nodes with implicit default End (no defaultConnector but has defaultConnectorLabel)
+  nodes.forEach((node) => {
+    if (node.type === "DECISION" && node.data.hasImplicitDefaultEnd) {
+      const endNodeId = `END_NODE_${endNodeCount++}`;
+      const defLabel =
+        (node.data.defaultConnectorLabel as string) || "Default Outcome";
+
+      resultNodes.push({
+        id: endNodeId,
+        type: "END",
+        label: "End",
+        x: 0,
+        y: 0,
+        width: NODE_WIDTH,
+        height: 40,
+        data: { isFaultPath: false },
+      });
+
+      resultEdges.push({
+        id: `${node.id}-${endNodeId}-def`,
+        source: node.id,
+        target: endNodeId,
+        label: defLabel,
+        type: "normal",
+      });
+    }
+  });
+
   // Find terminal nodes (no outgoing edges, not START)
   const terminalNodes = nodes.filter(
     (node) => !nodesWithOutgoing.has(node.id) && node.type !== "START"
   );
-
-  let endNodeCount = 0;
 
   terminalNodes.forEach((node) => {
     const endNodeId = `END_NODE_${endNodeCount++}`;
