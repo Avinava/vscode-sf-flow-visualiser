@@ -724,17 +724,37 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       (e) => e.type === "fault" || e.type === "fault-end"
     );
 
-    // Handle fault paths - position to the right (closer to source)
-    faultOuts.forEach((edge, i) => {
+    // Handle fault paths - position to the right at the SAME vertical level
+    // For fault-end (direct to END), keep END at exact same Y as source center
+    faultOuts.forEach((edge, faultIndex) => {
       if (!visited.has(edge.target)) {
-        // Position fault nodes closer - just 1.5 columns to the right, stacked vertically if multiple
-        layoutNode(
-          edge.target,
-          centerX + COL_WIDTH * 1.5,
-          row + i,
-          undefined,
-          new Set(visited)
-        );
+        const targetNode = nodeMap.get(edge.target);
+        const isFaultEnd = edge.type === "fault-end" || targetNode?.type === "END";
+        
+        if (isFaultEnd) {
+          // For fault-end: position END node at same Y level as source center for straight horizontal line
+          // We'll store a special Y offset to align centers
+          const srcY = START_Y + row * ROW_HEIGHT;
+          const srcCenterY = srcY + (node?.height || NODE_HEIGHT) / 2;
+          const endNodeHeight = 40; // END node height
+          const endNodeY = srcCenterY - endNodeHeight / 2;
+          
+          // Store position directly rather than using row calculation
+          positions.set(edge.target, {
+            x: centerX + COL_WIDTH * 1.5,
+            y: endNodeY
+          });
+          visited.add(edge.target);
+        } else {
+          // Regular fault path - position below with offset to avoid overlaps
+          layoutNode(
+            edge.target,
+            centerX + COL_WIDTH * 1.5,
+            row + faultIndex,
+            undefined,
+            new Set(visited)
+          );
+        }
       }
     });
 
@@ -1444,19 +1464,41 @@ const App: React.FC = () => {
       let path: string;
       const showAsRed = isFault || isFaultEnd;
 
-      const FAULT_HORIZONTAL_OFFSET = 40;
+      // Fault connector routing constants
+      // Fault connectors exit horizontally from the right side of nodes
+      const FAULT_HORIZONTAL_OFFSET = 50;
 
       if (isFaultEnd) {
-        // Horizontal path for fault-end connectors - straight line
-        path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${tgtCenterY}`;
+        // For fault-end: draw a perfectly horizontal straight line
+        // Use source's center Y for both endpoints to guarantee straight line
+        const straightY = srcCenterY;
+        path = `M ${srcRightX} ${straightY} L ${tgtLeftX} ${straightY}`;
       } else if (isFault) {
-        // Fault connectors: exit from right side
-        const horizontalEndX = srcRightX + FAULT_HORIZONTAL_OFFSET;
-        const cornerRadius = 10;
-
-        if (Math.abs(tgtCenterY - srcCenterY) < 20) {
+        // Fault connectors: exit from right side with smart routing
+        // Check if the horizontal path would overlap with existing main flow lines
+        const cornerRadius = 12;
+        
+        // Calculate base horizontal offset - increase if there might be overlaps
+        // Check if there are any nodes between source and target horizontally
+        const potentialOverlap = parsedData.nodes.some(n => {
+          if (n.id === src.id || n.id === tgt.id) return false;
+          const nCenterX = n.x + n.width / 2;
+          const nCenterY = n.y + n.height / 2;
+          // Check if this node is in the horizontal corridor between src and tgt
+          const inHorizontalRange = nCenterX > srcRightX && nCenterX < tgtLeftX;
+          const inVerticalRange = Math.abs(nCenterY - srcCenterY) < NODE_HEIGHT;
+          return inHorizontalRange && inVerticalRange;
+        });
+        
+        // Use larger offset if potential overlap detected
+        const horizontalEndX = srcRightX + (potentialOverlap ? FAULT_HORIZONTAL_OFFSET * 1.5 : FAULT_HORIZONTAL_OFFSET);
+        
+        // Check if target and source are at roughly same Y level
+        if (Math.abs(tgtCenterY - srcCenterY) < 15) {
+          // Nearly horizontal - draw straight line
           path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${tgtCenterY}`;
         } else if (tgtCenterY > srcCenterY) {
+          // Target is below - route down and right with smooth curves
           path = `M ${srcRightX} ${srcCenterY} 
                   L ${horizontalEndX - cornerRadius} ${srcCenterY}
                   Q ${horizontalEndX} ${srcCenterY}, ${horizontalEndX} ${srcCenterY + cornerRadius}
@@ -1464,6 +1506,7 @@ const App: React.FC = () => {
                   Q ${horizontalEndX} ${tgtCenterY}, ${horizontalEndX + cornerRadius} ${tgtCenterY}
                   L ${tgtLeftX} ${tgtCenterY}`;
         } else {
+          // Target is above - route up and right with smooth curves
           path = `M ${srcRightX} ${srcCenterY} 
                   L ${horizontalEndX - cornerRadius} ${srcCenterY}
                   Q ${horizontalEndX} ${srcCenterY}, ${horizontalEndX} ${srcCenterY - cornerRadius}
