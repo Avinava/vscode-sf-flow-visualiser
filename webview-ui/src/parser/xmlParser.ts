@@ -1,0 +1,489 @@
+/**
+ * Salesforce Flow XML Parser
+ *
+ * Parses Salesforce Flow XML files (*.flow-meta.xml) into a structured
+ * format suitable for visualization.
+ *
+ * Based on Salesforce Flow metadata structure:
+ * - flowMetadata.js: Element types, action types, connector types
+ * - alcCanvasUtils.js: Element parsing, type detection
+ */
+
+import type {
+  FlowNode,
+  FlowEdge,
+  ParsedFlow,
+  FlowMetadata,
+  NodeType,
+} from "../types";
+import { NODE_WIDTH, NODE_HEIGHT } from "../constants";
+
+// ============================================================================
+// ELEMENT TYPE MAPPING
+// Based on Salesforce's ELEMENT_TYPE enum in flowMetadata
+// ============================================================================
+
+const XML_TAG_TO_NODE_TYPE: Record<string, NodeType> = {
+  screens: "SCREEN",
+  decisions: "DECISION",
+  assignments: "ASSIGNMENT",
+  loops: "LOOP",
+  recordCreates: "RECORD_CREATE",
+  recordUpdates: "RECORD_UPDATE",
+  recordLookups: "RECORD_LOOKUP",
+  recordDeletes: "RECORD_DELETE",
+  actionCalls: "ACTION",
+  subflows: "SUBFLOW",
+  waits: "WAIT",
+  customErrors: "CUSTOM_ERROR",
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get text content of a child element by tag name
+ */
+function getText(el: Element, tag: string): string {
+  return el.getElementsByTagName(tag)[0]?.textContent || "";
+}
+
+/**
+ * Parse a connector element to extract target reference
+ */
+function parseConnector(connectorEl: Element): string | null {
+  return getText(connectorEl, "targetReference") || null;
+}
+
+// ============================================================================
+// START ELEMENT PARSING
+// ============================================================================
+
+interface StartNodeResult {
+  node: FlowNode;
+  edges: FlowEdge[];
+}
+
+function parseStartElement(startEl: Element): StartNodeResult {
+  const edges: FlowEdge[] = [];
+
+  const triggerType = getText(startEl, "triggerType");
+  const obj = getText(startEl, "object");
+  const recTrigger = getText(startEl, "recordTriggerType");
+
+  // Determine start label based on trigger type
+  let startLabel = "Start";
+  if (triggerType === "RecordAfterSave" || triggerType === "RecordBeforeSave") {
+    startLabel = "Record-Triggered Flow";
+  } else if (triggerType === "Scheduled") {
+    startLabel = "Scheduled Flow";
+  } else if (triggerType === "PlatformEvent") {
+    startLabel = "Platform Event-Triggered Flow";
+  }
+
+  const node: FlowNode = {
+    id: "START_NODE",
+    type: "START",
+    label: startLabel,
+    x: 0,
+    y: 0,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT + 24,
+    data: {
+      object: obj,
+      triggerType,
+      recordTriggerType: recTrigger,
+    },
+  };
+
+  // Parse main connector
+  const connEl = startEl.getElementsByTagName("connector")[0];
+  if (connEl) {
+    const target = parseConnector(connEl);
+    if (target) {
+      edges.push({
+        id: `start-${target}`,
+        source: "START_NODE",
+        target,
+        type: "normal",
+      });
+    }
+  }
+
+  // Parse scheduled paths (for scheduled flows)
+  const scheduledPaths = startEl.getElementsByTagName("scheduledPaths");
+  for (let i = 0; i < scheduledPaths.length; i++) {
+    const path = scheduledPaths[i];
+    const pathLabel = getText(path, "label") || getText(path, "name");
+    const pathConn = path.getElementsByTagName("connector")[0];
+    if (pathConn) {
+      const target = parseConnector(pathConn);
+      if (target) {
+        edges.push({
+          id: `start-${target}-sched-${i}`,
+          source: "START_NODE",
+          target,
+          label: pathLabel,
+          type: "normal",
+        });
+      }
+    }
+  }
+
+  return { node, edges };
+}
+
+// ============================================================================
+// FLOW ELEMENT PARSING
+// ============================================================================
+
+interface ElementResult {
+  node: FlowNode;
+  edges: FlowEdge[];
+}
+
+function parseFlowElement(
+  el: Element,
+  type: NodeType
+): ElementResult {
+  const edges: FlowEdge[] = [];
+
+  const name = getText(el, "name");
+  const label = getText(el, "label") || name;
+  const obj = getText(el, "object");
+
+  const node: FlowNode = {
+    id: name,
+    type,
+    label,
+    x: 0,
+    y: 0,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+    data: {
+      xmlElement: el.outerHTML,
+      object: obj,
+    },
+  };
+
+  // Parse standard connector
+  for (const child of Array.from(el.children)) {
+    if (child.tagName === "connector") {
+      const target = parseConnector(child);
+      if (target) {
+        edges.push({
+          id: `${name}-${target}`,
+          source: name,
+          target,
+          type: "normal",
+        });
+      }
+    }
+  }
+
+  // Parse fault connector
+  const faultConn = el.getElementsByTagName("faultConnector")[0];
+  if (faultConn) {
+    const target = parseConnector(faultConn);
+    if (target) {
+      edges.push({
+        id: `${name}-${target}-fault`,
+        source: name,
+        target,
+        label: "Fault",
+        type: "fault",
+      });
+    }
+  }
+
+  // Parse decision rules
+  if (type === "DECISION") {
+    const rules = el.getElementsByTagName("rules");
+    for (let j = 0; j < rules.length; j++) {
+      const rule = rules[j];
+      const ruleLabel = getText(rule, "label") || getText(rule, "name");
+      for (const rc of Array.from(rule.children)) {
+        if (rc.tagName === "connector") {
+          const target = parseConnector(rc);
+          if (target) {
+            edges.push({
+              id: `${name}-${target}-rule-${j}`,
+              source: name,
+              target,
+              label: ruleLabel,
+              type: "normal",
+            });
+          }
+        }
+      }
+    }
+
+    // Parse default connector
+    const defConn = el.getElementsByTagName("defaultConnector")[0];
+    if (defConn) {
+      const target = parseConnector(defConn);
+      const defLabel = getText(el, "defaultConnectorLabel") || "Default";
+      if (target) {
+        edges.push({
+          id: `${name}-${target}-def`,
+          source: name,
+          target,
+          label: defLabel,
+          type: "normal",
+        });
+      }
+    }
+  }
+
+  // Parse loop connectors
+  if (type === "LOOP") {
+    const nextConn = el.getElementsByTagName("nextValueConnector")[0];
+    if (nextConn) {
+      const target = parseConnector(nextConn);
+      if (target) {
+        edges.push({
+          id: `${name}-${target}-next`,
+          source: name,
+          target,
+          label: "For Each",
+          type: "loop-next",
+        });
+      }
+    }
+
+    const endConn = el.getElementsByTagName("noMoreValuesConnector")[0];
+    if (endConn) {
+      const target = parseConnector(endConn);
+      if (target) {
+        edges.push({
+          id: `${name}-${target}-end`,
+          source: name,
+          target,
+          label: "After Last",
+          type: "loop-end",
+        });
+      }
+    }
+  }
+
+  // Parse wait events
+  if (type === "WAIT") {
+    const waitEvents = el.getElementsByTagName("waitEvents");
+    for (let j = 0; j < waitEvents.length; j++) {
+      const we = waitEvents[j];
+      const weLabel = getText(we, "label") || getText(we, "name");
+      const weConn = we.getElementsByTagName("connector")[0];
+      if (weConn) {
+        const target = parseConnector(weConn);
+        if (target) {
+          edges.push({
+            id: `${name}-${target}-wait-${j}`,
+            source: name,
+            target,
+            label: weLabel,
+            type: "normal",
+          });
+        }
+      }
+    }
+
+    // Parse default connector for waits
+    const defConn = el.getElementsByTagName("defaultConnector")[0];
+    if (defConn) {
+      const target = parseConnector(defConn);
+      const defLabel = getText(el, "defaultConnectorLabel") || "Default";
+      if (target) {
+        edges.push({
+          id: `${name}-${target}-def`,
+          source: name,
+          target,
+          label: defLabel,
+          type: "normal",
+        });
+      }
+    }
+  }
+
+  return { node, edges };
+}
+
+// ============================================================================
+// END NODE GENERATION
+// Based on Salesforce's handling of terminal nodes
+// ============================================================================
+
+function generateEndNodes(
+  nodes: FlowNode[],
+  edges: FlowEdge[]
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  const resultNodes = [...nodes];
+  const resultEdges = [...edges];
+
+  // Find nodes with outgoing connections
+  const nodesWithOutgoing = new Set(edges.map((e) => e.source));
+
+  // Track nodes reached via fault connectors
+  const faultReachedNodes = new Set<string>();
+  edges.forEach((e) => {
+    if (e.type === "fault") {
+      faultReachedNodes.add(e.target);
+    }
+  });
+
+  // Find terminal nodes (no outgoing edges, not START)
+  const terminalNodes = nodes.filter(
+    (node) => !nodesWithOutgoing.has(node.id) && node.type !== "START"
+  );
+
+  let endNodeCount = 0;
+
+  terminalNodes.forEach((node) => {
+    const endNodeId = `END_NODE_${endNodeCount++}`;
+    const isFaultPath = faultReachedNodes.has(node.id);
+
+    resultNodes.push({
+      id: endNodeId,
+      type: "END",
+      label: "End",
+      x: 0,
+      y: 0,
+      width: NODE_WIDTH,
+      height: 40,
+      data: { isFaultPath },
+    });
+
+    resultEdges.push({
+      id: `${node.id}-${endNodeId}`,
+      source: node.id,
+      target: endNodeId,
+      type: isFaultPath ? "fault-end" : "normal",
+    });
+  });
+
+  return { nodes: resultNodes, edges: resultEdges };
+}
+
+// ============================================================================
+// METADATA PARSING
+// ============================================================================
+
+function parseMetadata(flowEl: Element): FlowMetadata {
+  const metadata: FlowMetadata = {};
+
+  for (const child of Array.from(flowEl.children)) {
+    switch (child.tagName) {
+      case "label":
+        metadata.label = child.textContent || "";
+        break;
+      case "apiVersion":
+        metadata.apiVersion = child.textContent || "";
+        break;
+      case "processType":
+        metadata.processType = child.textContent || "";
+        break;
+    }
+  }
+
+  return metadata;
+}
+
+// ============================================================================
+// MAIN PARSER FUNCTION
+// ============================================================================
+
+/**
+ * Parse a Salesforce Flow XML document into a structured format
+ *
+ * @param xmlText - The raw XML content of a .flow-meta.xml file
+ * @returns Parsed flow with nodes, edges, and metadata
+ */
+export function parseFlowXML(xmlText: string): ParsedFlow {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "text/xml");
+
+  let nodes: FlowNode[] = [];
+  let edges: FlowEdge[] = [];
+  let metadata: FlowMetadata = {};
+
+  // Parse flow metadata
+  const flowEl = doc.getElementsByTagName("Flow")[0];
+  if (flowEl) {
+    metadata = parseMetadata(flowEl);
+  }
+
+  // Parse start element
+  const startEl = doc.getElementsByTagName("start")[0];
+  if (startEl) {
+    const { node, edges: startEdges } = parseStartElement(startEl);
+    nodes.push(node);
+    edges.push(...startEdges);
+  }
+
+  // Parse all flow elements
+  for (const [tag, type] of Object.entries(XML_TAG_TO_NODE_TYPE)) {
+    const elements = doc.getElementsByTagName(tag);
+    for (let i = 0; i < elements.length; i++) {
+      const el = elements[i];
+      const { node, edges: elementEdges } = parseFlowElement(el, type);
+      nodes.push(node);
+      edges.push(...elementEdges);
+    }
+  }
+
+  // Generate END nodes for terminal paths
+  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(nodes, edges);
+
+  return {
+    nodes: finalNodes,
+    edges: finalEdges,
+    metadata,
+  };
+}
+
+// ============================================================================
+// VALIDATION UTILITIES
+// ============================================================================
+
+/**
+ * Validate that the XML is a valid Salesforce Flow
+ */
+export function isValidFlowXML(xmlText: string): boolean {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+
+    // Check for parse errors
+    const parseError = doc.getElementsByTagName("parsererror");
+    if (parseError.length > 0) return false;
+
+    // Check for Flow root element
+    const flowEl = doc.getElementsByTagName("Flow")[0];
+    if (!flowEl) return false;
+
+    // Check for start element
+    const startEl = doc.getElementsByTagName("start")[0];
+    if (!startEl) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get flow label from XML (quick extraction without full parsing)
+ */
+export function getFlowLabel(xmlText: string): string | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+
+    const labelEl = doc.getElementsByTagName("label")[0];
+    return labelEl?.textContent || null;
+  } catch {
+    return null;
+  }
+}
+
+export default parseFlowXML;
