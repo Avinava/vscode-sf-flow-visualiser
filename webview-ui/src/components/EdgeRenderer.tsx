@@ -139,6 +139,7 @@ const EdgeLabel: React.FC<EdgeLabelProps> = ({ x, y, label, isFault }) => (
 
 /**
  * Generate an orthogonal path with rounded corners
+ * Uses bottom-bend strategy: go down first, then horizontal, then down to target
  */
 function createOrthogonalPath(
   srcX: number,
@@ -155,42 +156,51 @@ function createOrthogonalPath(
   }
 
   const sign = dx > 0 ? 1 : -1;
-  const midY = srcY + (tgtY - srcY) / 2;
+  
+  // For branch drops: bend happens just above the target (bottom-bend strategy)
+  // This keeps vertical lines straight from the branch line and bends near the target
+  const bendY = tgtY - 35; // Bend 35px above target
 
-  if (Math.abs(tgtY - srcY) < 40) {
-    // Short vertical distance - use smaller curves
+  if (Math.abs(tgtY - srcY) < 60) {
+    // Short vertical distance - use smaller curves closer to target
+    const shortBendY = tgtY - 25;
     return `M ${srcX} ${srcY} 
-            L ${srcX} ${srcY + 15}
-            Q ${srcX} ${srcY + 25}, ${srcX + sign * 10} ${srcY + 25}
-            L ${tgtX - sign * 10} ${srcY + 25}
-            Q ${tgtX} ${srcY + 25}, ${tgtX} ${srcY + 35}
+            L ${srcX} ${shortBendY - cornerRadius}
+            Q ${srcX} ${shortBendY}, ${srcX + sign * cornerRadius} ${shortBendY}
+            L ${tgtX - sign * cornerRadius} ${shortBendY}
+            Q ${tgtX} ${shortBendY}, ${tgtX} ${shortBendY + cornerRadius}
             L ${tgtX} ${tgtY}`;
   }
 
   return `M ${srcX} ${srcY} 
-          L ${srcX} ${midY - cornerRadius}
-          Q ${srcX} ${midY}, ${srcX + sign * cornerRadius} ${midY}
-          L ${tgtX - sign * cornerRadius} ${midY}
-          Q ${tgtX} ${midY}, ${tgtX} ${midY + cornerRadius}
+          L ${srcX} ${bendY - cornerRadius}
+          Q ${srcX} ${bendY}, ${srcX + sign * cornerRadius} ${bendY}
+          L ${tgtX - sign * cornerRadius} ${bendY}
+          Q ${tgtX} ${bendY}, ${tgtX} ${bendY + cornerRadius}
           L ${tgtX} ${tgtY}`;
 }
 
 /**
  * Generate a fault connector path (exits horizontally from right side)
+ * Uses dynamic horizontal offset based on fault index to avoid overlapping
  */
 function createFaultPath(
   srcX: number,
   srcY: number,
   tgtX: number,
   tgtY: number,
-  cornerRadius: number = CORNER_RADIUS
+  cornerRadius: number = CORNER_RADIUS,
+  faultIndex: number = 0
 ): string {
   // Check if nearly horizontal
   if (Math.abs(tgtY - srcY) < 15) {
     return `M ${srcX} ${srcY} L ${tgtX} ${tgtY}`;
   }
 
-  const horizontalEndX = srcX + FAULT_HORIZONTAL_OFFSET;
+  // Stagger horizontal offset for multiple fault paths to avoid overlap
+  const baseOffset = FAULT_HORIZONTAL_OFFSET;
+  const staggerOffset = faultIndex * 25; // 25px stagger between fault paths
+  const horizontalEndX = srcX + baseOffset + staggerOffset;
 
   if (tgtY > srcY) {
     // Target is below
@@ -654,6 +664,16 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
   const renderRemainingEdges = () => {
     const elements: JSX.Element[] = [];
 
+    // Group fault edges by source for staggering
+    const faultEdgesBySource = new Map<string, FlowEdge[]>();
+    edges.forEach((edge) => {
+      if (edge.type === "fault" || edge.type === "fault-end") {
+        const list = faultEdgesBySource.get(edge.source) || [];
+        list.push(edge);
+        faultEdgesBySource.set(edge.source, list);
+      }
+    });
+
     edges.forEach((edge) => {
       if (allHandledEdges.has(edge.id)) return;
 
@@ -684,8 +704,11 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         // Straight horizontal line for fault-end
         path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${srcCenterY}`;
       } else if (isFault) {
-        // Fault path routing
-        path = createFaultPath(srcRightX, srcCenterY, tgtLeftX, tgtCenterY);
+        // Get fault index for staggering
+        const faultEdges = faultEdgesBySource.get(edge.source) || [];
+        const faultIndex = faultEdges.findIndex((e) => e.id === edge.id);
+        // Fault path routing with stagger index
+        path = createFaultPath(srcRightX, srcCenterY, tgtLeftX, tgtCenterY, CORNER_RADIUS, faultIndex);
       } else if (isLoopBack) {
         // Loop-back connector
         path = createLoopBackPath(srcCenterX, srcBottomY, tgtCenterX, tgtTopY);
