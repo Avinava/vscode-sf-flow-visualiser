@@ -479,35 +479,48 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       (e) => e.type !== "fault" && e.type !== "fault-end"
     );
     if (normalIncoming.length > 1) {
-      mergePointSources.set(nodeId, new Set(normalIncoming.map((e) => e.source)));
+      mergePointSources.set(
+        nodeId,
+        new Set(normalIncoming.map((e) => e.source))
+      );
     }
   });
 
   // Calculate depth of each branch (how many nodes before reaching merge/end)
-  function getBranchDepth(startId: string, mergePoint?: string, visited = new Set<string>()): number {
+  function getBranchDepth(
+    startId: string,
+    mergePoint?: string,
+    visited = new Set<string>()
+  ): number {
     if (!startId || visited.has(startId)) return 0;
     if (mergePoint && startId === mergePoint) return 0;
-    
+
     const node = nodeMap.get(startId);
     if (!node) return 0;
-    
+
     visited.add(startId);
-    
+
     const outs = outgoing.get(startId) || [];
-    const normalOuts = outs.filter(e => e.type !== "fault" && e.type !== "fault-end");
-    
+    const normalOuts = outs.filter(
+      (e) => e.type !== "fault" && e.type !== "fault-end"
+    );
+
     if (normalOuts.length === 0) return 1;
-    
+
     // For branching nodes, get max depth of all branches
-    if (node.type === "DECISION" || node.type === "WAIT" || node.type === "LOOP") {
+    if (
+      node.type === "DECISION" ||
+      node.type === "WAIT" ||
+      node.type === "LOOP"
+    ) {
       let maxDepth = 0;
-      normalOuts.forEach(e => {
+      normalOuts.forEach((e) => {
         const depth = getBranchDepth(e.target, mergePoint, new Set(visited));
         maxDepth = Math.max(maxDepth, depth);
       });
       return 1 + maxDepth;
     }
-    
+
     // For linear nodes, follow the path
     return 1 + getBranchDepth(normalOuts[0].target, mergePoint, visited);
   }
@@ -515,20 +528,22 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   // Find merge point for branches of a decision node
   function findMergePoint(branchTargets: string[]): string | undefined {
     if (branchTargets.length < 2) return undefined;
-    
+
     // Get all reachable nodes from each branch
-    const reachableSets: Map<string, number>[] = branchTargets.map(() => new Map());
-    
+    const reachableSets: Map<string, number>[] = branchTargets.map(
+      () => new Map()
+    );
+
     branchTargets.forEach((target, idx) => {
       const visited = new Set<string>();
       const queue: { id: string; depth: number }[] = [{ id: target, depth: 0 }];
-      
+
       while (queue.length > 0) {
         const { id, depth } = queue.shift()!;
         if (visited.has(id)) continue;
         visited.add(id);
         reachableSets[idx].set(id, depth);
-        
+
         const outs = outgoing.get(id) || [];
         outs.forEach((e) => {
           if (e.type !== "fault" && e.type !== "fault-end") {
@@ -537,16 +552,16 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
         });
       }
     });
-    
+
     // Find first common node with minimum total depth
     let bestMerge: string | undefined;
     let bestMinDepth = Infinity;
-    
+
     const firstSet = reachableSets[0];
     for (const [nodeId, depth0] of firstSet) {
       const depths = [depth0];
       let isCommon = true;
-      
+
       for (let i = 1; i < reachableSets.length; i++) {
         const depthI = reachableSets[i].get(nodeId);
         if (depthI === undefined) {
@@ -555,7 +570,7 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
         }
         depths.push(depthI);
       }
-      
+
       if (isCommon) {
         const minDepth = Math.min(...depths);
         if (minDepth < bestMinDepth) {
@@ -564,31 +579,36 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
         }
       }
     }
-    
+
     return bestMerge;
   }
 
   // Position nodes
-  const positions = new Map<string, { x: number; y: number; col: number; row: number }>();
+  const positions = new Map<
+    string,
+    { x: number; y: number; col: number; row: number }
+  >();
   const columnOccupancy = new Map<number, Map<number, string>>(); // row -> col -> nodeId
-  
+
   function isPositionFree(col: number, row: number): boolean {
     const rowOccupancy = columnOccupancy.get(row);
     return !rowOccupancy || !rowOccupancy.has(col);
   }
-  
+
   function occupyPosition(col: number, row: number, nodeId: string): void {
     if (!columnOccupancy.has(row)) columnOccupancy.set(row, new Map());
     columnOccupancy.get(row)!.set(col, nodeId);
   }
-  
+
   function findFreeColumn(preferredCol: number, row: number): number {
     if (isPositionFree(preferredCol, row)) return preferredCol;
-    
+
     // Search outward from preferred column
     for (let offset = 1; offset < 50; offset++) {
-      if (isPositionFree(preferredCol + offset, row)) return preferredCol + offset;
-      if (isPositionFree(preferredCol - offset, row)) return preferredCol - offset;
+      if (isPositionFree(preferredCol + offset, row))
+        return preferredCol + offset;
+      if (isPositionFree(preferredCol - offset, row))
+        return preferredCol - offset;
     }
     return preferredCol;
   }
@@ -597,60 +617,66 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   const visited = new Set<string>();
   const startCol = 0;
   const startRow = 0;
-  
+
   interface LayoutTask {
     nodeId: string;
     col: number;
     row: number;
     stopAtMerge?: string;
   }
-  
-  const queue: LayoutTask[] = [{ nodeId: "START_NODE", col: startCol, row: startRow }];
-  
+
+  const queue: LayoutTask[] = [
+    { nodeId: "START_NODE", col: startCol, row: startRow },
+  ];
+
   while (queue.length > 0) {
     const task = queue.shift()!;
     const { nodeId, stopAtMerge } = task;
     let { col, row } = task;
-    
+
     if (visited.has(nodeId)) continue;
     if (stopAtMerge && nodeId === stopAtMerge) continue;
-    
+
     const node = nodeMap.get(nodeId);
     if (!node) continue;
-    
+
     visited.add(nodeId);
-    
+
     // Find free position
     col = findFreeColumn(col, row);
     occupyPosition(col, row, nodeId);
     positions.set(nodeId, { x: 0, y: 0, col, row });
-    
+
     const outs = outgoing.get(nodeId) || [];
-    const normalOuts = outs.filter(e => e.type !== "fault" && e.type !== "fault-end");
-    const faultOuts = outs.filter(e => e.type === "fault" || e.type === "fault-end");
-    
+    const normalOuts = outs.filter(
+      (e) => e.type !== "fault" && e.type !== "fault-end"
+    );
+    const faultOuts = outs.filter(
+      (e) => e.type === "fault" || e.type === "fault-end"
+    );
+
     // Handle fault paths - they go to the right
     faultOuts.forEach((edge) => {
       if (!visited.has(edge.target)) {
         queue.push({ nodeId: edge.target, col: col + 3, row: row });
       }
     });
-    
+
     if (node.type === "DECISION" || node.type === "WAIT") {
       // Branching node - spread branches horizontally
-      const branchTargets = normalOuts.map(e => e.target);
+      const branchTargets = normalOuts.map((e) => e.target);
       const mergePoint = findMergePoint(branchTargets);
-      
+
       // Sort branches: named first, default last
       const sortedOuts = [...normalOuts].sort((a, b) => {
         if (a.label?.includes("Default")) return 1;
         if (b.label?.includes("Default")) return -1;
         return 0;
       });
-      
+
       const numBranches = sortedOuts.length;
       const branchStartCol = col - Math.floor((numBranches - 1) / 2);
-      
+
       sortedOuts.forEach((edge, idx) => {
         if (!visited.has(edge.target)) {
           const branchCol = branchStartCol + idx;
@@ -658,89 +684,89 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
             nodeId: edge.target,
             col: branchCol,
             row: row + 1,
-            stopAtMerge: mergePoint
+            stopAtMerge: mergePoint,
           });
         }
       });
-      
+
       // Schedule merge point to be processed after branches
       if (mergePoint && !visited.has(mergePoint)) {
         // Calculate row for merge point based on max branch depth
         let maxBranchDepth = 0;
-        sortedOuts.forEach(e => {
+        sortedOuts.forEach((e) => {
           const depth = getBranchDepth(e.target, mergePoint);
           maxBranchDepth = Math.max(maxBranchDepth, depth);
         });
-        
+
         queue.push({
           nodeId: mergePoint,
           col: col,
-          row: row + 1 + maxBranchDepth
+          row: row + 1 + maxBranchDepth,
         });
       }
     } else if (node.type === "LOOP") {
       // Loop: "For Each" branch, then "After Last" continues
-      const forEachEdge = outs.find(e => e.type === "loop-next");
-      const afterLastEdge = outs.find(e => e.type === "loop-end");
-      
+      const forEachEdge = outs.find((e) => e.type === "loop-next");
+      const afterLastEdge = outs.find((e) => e.type === "loop-end");
+
       if (forEachEdge && !visited.has(forEachEdge.target)) {
         queue.push({
           nodeId: forEachEdge.target,
           col: col - 1,
-          row: row + 1
+          row: row + 1,
         });
       }
-      
+
       if (afterLastEdge && !visited.has(afterLastEdge.target)) {
         // Calculate depth of loop body
-        const loopBodyDepth = forEachEdge 
-          ? getBranchDepth(forEachEdge.target, nodeId) 
+        const loopBodyDepth = forEachEdge
+          ? getBranchDepth(forEachEdge.target, nodeId)
           : 0;
-        
+
         queue.push({
           nodeId: afterLastEdge.target,
           col: col,
-          row: row + 1 + Math.max(loopBodyDepth, 1)
+          row: row + 1 + Math.max(loopBodyDepth, 1),
         });
       }
     } else {
       // Linear node - continue down
-      normalOuts.forEach(edge => {
+      normalOuts.forEach((edge) => {
         if (!visited.has(edge.target)) {
           queue.push({
             nodeId: edge.target,
             col: col,
-            row: row + 1
+            row: row + 1,
           });
         }
       });
     }
   }
-  
+
   // Handle unvisited nodes (shouldn't happen normally)
   let maxRow = 0;
-  positions.forEach(p => maxRow = Math.max(maxRow, p.row));
-  
-  nodes.forEach(n => {
+  positions.forEach((p) => (maxRow = Math.max(maxRow, p.row)));
+
+  nodes.forEach((n) => {
     if (!positions.has(n.id)) {
       maxRow++;
       positions.set(n.id, { x: 0, y: 0, col: 5, row: maxRow });
     }
   });
-  
+
   // Convert grid positions to pixel coordinates
   const GRID_X_SPACING = H_GAP;
   const GRID_Y_SPACING = NODE_HEIGHT + V_GAP;
   const CENTER_X = 600;
   const START_Y = 80;
-  
+
   positions.forEach((pos) => {
     pos.x = CENTER_X + pos.col * GRID_X_SPACING;
     pos.y = START_Y + pos.row * GRID_Y_SPACING;
   });
-  
+
   // Adjust fault-end nodes to be horizontally aligned with source
-  edges.forEach(e => {
+  edges.forEach((e) => {
     if (e.type === "fault-end") {
       const srcPos = positions.get(e.source);
       const tgtPos = positions.get(e.target);
@@ -749,8 +775,8 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       }
     }
   });
-  
-  return nodes.map(n => {
+
+  return nodes.map((n) => {
     const pos = positions.get(n.id) || { x: 0, y: 0 };
     return { ...n, x: pos.x - n.width / 2, y: pos.y };
   });
@@ -892,7 +918,10 @@ const App: React.FC = () => {
         path = `M ${srcRightX} ${srcCenterY} L ${midX} ${srcCenterY} L ${midX} ${tgtCenterY} L ${tgtLeftX} ${tgtCenterY}`;
       } else if (isLoopBack) {
         // Loop-back connector: go left and up
-        const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
+        const offsetX = Math.min(
+          50,
+          Math.abs(srcCenterX - tgtCenterX) / 2 + 30
+        );
         const leftX = Math.min(srcCenterX, tgtCenterX) - offsetX;
         path = `M ${srcCenterX} ${srcBottomY} 
                 L ${srcCenterX} ${srcBottomY + 20} 
