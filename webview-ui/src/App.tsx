@@ -411,6 +411,33 @@ function parseFlowXML(xmlText: string): ParsedFlow {
     }
   }
 
+  // Find terminal nodes (nodes with no outgoing connections) and add END nodes
+  const nodesWithOutgoing = new Set(edges.map((e) => e.source));
+  let endNodeCount = 0;
+  
+  nodes.forEach((node) => {
+    if (!nodesWithOutgoing.has(node.id) && node.type !== "START") {
+      // This node has no outgoing edges - add an END node after it
+      const endNodeId = `END_NODE_${endNodeCount++}`;
+      nodes.push({
+        id: endNodeId,
+        type: "END",
+        label: "End",
+        x: 0,
+        y: 0,
+        width: NODE_WIDTH,
+        height: 40,
+        data: {},
+      });
+      edges.push({
+        id: `${node.id}-${endNodeId}`,
+        source: node.id,
+        target: endNodeId,
+        type: "normal",
+      });
+    }
+  });
+
   return { nodes, edges, metadata };
 }
 
@@ -1033,6 +1060,36 @@ const App: React.FC = () => {
             {parsedData.nodes.map((node) => {
               const config = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
               const isSelected = selectedNode?.id === node.id;
+
+              // Special rendering for END nodes - simple red circle
+              if (node.type === "END") {
+                return (
+                  <div
+                    key={node.id}
+                    className="flow-node absolute flex flex-col items-center"
+                    style={{ left: node.x, top: node.y, width: node.width }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedNode(node);
+                    }}
+                  >
+                    {/* Top connector dot */}
+                    <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow mb-2"></div>
+                    
+                    {/* End circle */}
+                    <div className={`
+                      w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
+                      shadow-md transition-all
+                      ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
+                    `}>
+                      <Circle size={16} className="text-white" fill="white" />
+                    </div>
+                    
+                    {/* Label */}
+                    <div className="text-xs font-medium text-slate-600 mt-1.5">End</div>
+                  </div>
+                );
+              }
 
               return (
                 <div
