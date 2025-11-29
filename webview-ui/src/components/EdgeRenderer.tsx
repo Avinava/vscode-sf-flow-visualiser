@@ -271,30 +271,49 @@ function calculateBranchLines(
   // Find branching nodes (DECISION, WAIT, LOOP, or START with multiple paths)
   nodes.forEach((srcNode) => {
     const srcEdges = edgesBySource.get(srcNode.id) || [];
-    const nonFaultEdges = srcEdges.filter(
-      (e) =>
-        e.type !== "fault" && e.type !== "fault-end" && e.type !== "loop-end"
-    );
+
+    // For LOOP nodes, include both loop-next and loop-end as branches
+    // For other nodes, exclude loop-end and fault edges
+    let branchEdges: FlowEdge[];
+
+    if (srcNode.type === "LOOP") {
+      // For loops: include loop-next (For Each) and loop-end (After Last)
+      branchEdges = srcEdges.filter(
+        (e) => e.type === "loop-next" || e.type === "loop-end"
+      );
+    } else {
+      branchEdges = srcEdges.filter(
+        (e) =>
+          e.type !== "fault" && e.type !== "fault-end" && e.type !== "loop-end"
+      );
+    }
 
     // Check if this is a branching node
     const isBranchingNode =
       srcNode.type === "DECISION" ||
       srcNode.type === "WAIT" ||
       srcNode.type === "LOOP" ||
-      (srcNode.type === "START" && nonFaultEdges.length > 1);
+      (srcNode.type === "START" && branchEdges.length > 1);
 
     if (!isBranchingNode) {
       return;
     }
 
-    let branchEdges = nonFaultEdges;
-
     if (branchEdges.length < 2 && srcNode.type !== "LOOP") {
+      return;
+    }
+
+    // For LOOP nodes with only one branch, skip branch line rendering
+    if (srcNode.type === "LOOP" && branchEdges.length < 2) {
       return;
     }
 
     // Sort branches: rules/immediate on left, default/async on right (Salesforce style)
     branchEdges = [...branchEdges].sort((a, b) => {
+      // For LOOP nodes: "For Each" (loop-next) on left, "After Last" (loop-end) on right
+      if (a.type === "loop-end" && b.type !== "loop-end") return 1;
+      if (a.type !== "loop-end" && b.type === "loop-end") return -1;
+
       // For START nodes: "Run Immediately" on left, "Run Asynchronously" on right
       const aIsAsync =
         a.label?.toLowerCase().includes("asynchron") ||
