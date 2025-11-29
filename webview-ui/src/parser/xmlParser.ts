@@ -143,10 +143,7 @@ interface ElementResult {
   edges: FlowEdge[];
 }
 
-function parseFlowElement(
-  el: Element,
-  type: NodeType
-): ElementResult {
+function parseFlowElement(el: Element, type: NodeType): ElementResult {
   const edges: FlowEdge[] = [];
 
   const name = getText(el, "name");
@@ -432,7 +429,10 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   }
 
   // Generate END nodes for terminal paths
-  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(nodes, edges);
+  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(
+    nodes,
+    edges
+  );
 
   return {
     nodes: finalNodes,

@@ -130,7 +130,12 @@ function _isBranchingNode(node: FlowNode): boolean {
  * Based on Salesforce's supportsChildren in alcCanvasUtils
  */
 function _supportsChildren(node: FlowNode): boolean {
-  return node.type === "DECISION" || node.type === "WAIT" || node.type === "LOOP" || node.type === "START";
+  return (
+    node.type === "DECISION" ||
+    node.type === "WAIT" ||
+    node.type === "LOOP" ||
+    node.type === "START"
+  );
 }
 
 /**
@@ -140,7 +145,11 @@ function _supportsChildren(node: FlowNode): boolean {
 function _getChildCount(node: FlowNode): number | null {
   if (node.type === "LOOP") return 1; // Loop has single FOR_EACH child
 
-  if (node.type === "DECISION" || node.type === "WAIT" || node.type === "START") {
+  if (
+    node.type === "DECISION" ||
+    node.type === "WAIT" ||
+    node.type === "START"
+  ) {
     const childRefs = node.children || [];
     // Account for default connector
     return childRefs.length + 1;
@@ -291,7 +300,9 @@ function calculateBranchDepth(
   }
 
   // Linear node - continue down
-  return 1 + calculateBranchDepth(outs[0].target, nodeMap, outgoing, stopAt, visited);
+  return (
+    1 + calculateBranchDepth(outs[0].target, nodeMap, outgoing, stopAt, visited)
+  );
 }
 
 // ============================================================================
@@ -341,7 +352,13 @@ function calculateSubtreeWidth(
 
     // Width after merge
     const afterMergeWidth = merge
-      ? calculateSubtreeWidth(merge, nodeMap, outgoing, stopAt, new Set(visited))
+      ? calculateSubtreeWidth(
+          merge,
+          nodeMap,
+          outgoing,
+          stopAt,
+          new Set(visited)
+        )
       : 0;
 
     return Math.max(totalWidth, afterMergeWidth, 1);
@@ -375,7 +392,13 @@ function calculateSubtreeWidth(
   }
 
   // Linear node
-  return calculateSubtreeWidth(outs[0].target, nodeMap, outgoing, stopAt, visited);
+  return calculateSubtreeWidth(
+    outs[0].target,
+    nodeMap,
+    outgoing,
+    stopAt,
+    visited
+  );
 }
 
 // ============================================================================
@@ -454,7 +477,8 @@ export function autoLayout(
     faultOuts.forEach((edge, faultIndex) => {
       if (!visited.has(edge.target)) {
         const targetNode = nodeMap.get(edge.target);
-        const isFaultEnd = edge.type === "fault-end" || targetNode?.type === "END";
+        const isFaultEnd =
+          edge.type === "fault-end" || targetNode?.type === "END";
 
         if (isFaultEnd) {
           // For fault-end: position END node at same Y level for straight horizontal line
@@ -488,7 +512,11 @@ export function autoLayout(
     // Handle branching nodes (Decision, Wait)
     if (nodeType === "DECISION" || nodeType === "WAIT") {
       const branchTargets = outs.map((e) => e.target);
-      const mergePoint = findMergePointForBranches(branchTargets, outgoing, nodeMap);
+      const mergePoint = findMergePointForBranches(
+        branchTargets,
+        outgoing,
+        nodeMap
+      );
 
       // Sort branches: rules/named on left, default on right (Salesforce style)
       const sortedOuts = [...outs].sort((a, b) => {

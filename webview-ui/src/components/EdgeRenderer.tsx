@@ -370,9 +370,7 @@ function calculateMergeLines(
   nodes.forEach((tgtNode) => {
     const incomingEdges = (edgesByTarget.get(tgtNode.id) || []).filter(
       (e) =>
-        e.type !== "fault" &&
-        e.type !== "fault-end" &&
-        !handledEdges.has(e.id)
+        e.type !== "fault" && e.type !== "fault-end" && !handledEdges.has(e.id)
     );
 
     if (incomingEdges.length < 2) return;
@@ -419,10 +417,7 @@ function calculateMergeLines(
 // ============================================================================
 
 export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
-  const nodeMap = useMemo(
-    () => new Map(nodes.map((n) => [n.id, n])),
-    [nodes]
-  );
+  const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   // edgesBySource available for future edge grouping needs
   // const edgesBySource = useMemo(() => {
@@ -637,7 +632,12 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         path = `M ${srcCenterX} ${srcBottomY} L ${tgtCenterX} ${tgtTopY}`;
       } else {
         // Orthogonal routing
-        path = createOrthogonalPath(srcCenterX, srcBottomY, tgtCenterX, tgtTopY);
+        path = createOrthogonalPath(
+          srcCenterX,
+          srcBottomY,
+          tgtCenterX,
+          tgtTopY
+        );
       }
 
       // Calculate label position
@@ -648,7 +648,10 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         labelX = (srcRightX + tgtLeftX) / 2;
         labelY = srcCenterY - 12;
       } else if (isLoopBack) {
-        const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
+        const offsetX = Math.min(
+          50,
+          Math.abs(srcCenterX - tgtCenterX) / 2 + 30
+        );
         labelX = Math.min(srcCenterX, tgtCenterX) - offsetX;
         labelY = (srcBottomY + tgtTopY) / 2;
       }
@@ -658,13 +661,20 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
           <path
             d={path}
             fill="none"
-            stroke={showAsRed ? CONNECTOR_COLORS.fault : CONNECTOR_COLORS.default}
+            stroke={
+              showAsRed ? CONNECTOR_COLORS.fault : CONNECTOR_COLORS.default
+            }
             strokeWidth={CONNECTOR_WIDTHS.default}
             strokeDasharray={showAsRed ? "6,4" : undefined}
             markerEnd={showAsRed ? "url(#arrow-red)" : "url(#arrow)"}
           />
           {edge.label && (
-            <EdgeLabel x={labelX} y={labelY} label={edge.label} isFault={showAsRed} />
+            <EdgeLabel
+              x={labelX}
+              y={labelY}
+              label={edge.label}
+              isFault={showAsRed}
+            />
           )}
         </g>
       );
@@ -674,9 +684,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
   };
 
   return (
-    <svg
-      className="absolute top-0 left-0 w-1 h-1 overflow-visible pointer-events-none"
-    >
+    <svg className="absolute top-0 left-0 w-1 h-1 overflow-visible pointer-events-none">
       <EdgeMarkers />
       {renderBranchLines()}
       {renderMergeLines()}
