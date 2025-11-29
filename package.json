@@ -33,13 +33,19 @@
       {
         "command": "sf-flow-visualizer.show",
         "title": "Visualize Flow",
-        "category": "SF Flow",
+        "category": "SF Flow Visualizer",
         "icon": "$(graph)"
       },
       {
         "command": "sf-flow-visualizer.showFromExplorer",
         "title": "Visualize Flow",
-        "category": "SF Flow"
+        "category": "SF Flow Visualizer"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "sf-flow-visualizer.submenu",
+        "label": "SF Flow Visualizer"
       }
     ],
     "menus": {
@@ -52,16 +58,22 @@
       ],
       "editor/context": [
         {
+          "submenu": "sf-flow-visualizer.submenu",
           "when": "resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "group": "1_sfflow"
+        }
+      ],
+      "sf-flow-visualizer.submenu": [
+        {
           "command": "sf-flow-visualizer.show",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
+          "submenu": "sf-flow-visualizer.submenu",
           "when": "resourceFilename =~ /\\.flow-meta\\.xml$/",
-          "command": "sf-flow-visualizer.showFromExplorer",
-          "group": "navigation"
+          "group": "1_sfflow"
         }
       ],
       "commandPalette": [

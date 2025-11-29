@@ -647,31 +647,47 @@ const App: React.FC = () => {
     }
   }, [xmlInput, autoLayoutEnabled]);
 
-  // Canvas interactions
+  // Canvas interactions - use document-level events for reliable dragging
   const onMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".flow-node")) return;
+    e.preventDefault();
     isDragging.current = true;
     lastPos.current = { x: e.clientX, y: e.clientY };
+    document.body.style.cursor = "grabbing";
   };
 
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current) return;
-    setPan((p) => ({
-      x: p.x + e.clientX - lastPos.current.x,
-      y: p.y + e.clientY - lastPos.current.y,
-    }));
-    lastPos.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const onMouseUp = () => {
-    isDragging.current = false;
-  };
-
-  const onWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
       e.preventDefault();
-      setScale((s) => Math.min(Math.max(0.2, s - e.deltaY * 0.001), 2));
-    }
+      const dx = e.clientX - lastPos.current.x;
+      const dy = e.clientY - lastPos.current.y;
+      setPan((p) => ({
+        x: p.x + dx,
+        y: p.y + dy,
+      }));
+      lastPos.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleMouseUp = () => {
+      isDragging.current = false;
+      document.body.style.cursor = "";
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  // Scroll to zoom (no modifier needed)
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setScale((s) => Math.min(Math.max(0.2, s + delta), 2));
   };
 
   // Render edges
@@ -963,11 +979,8 @@ const App: React.FC = () => {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing select-none"
+          className="w-full h-full cursor-grab select-none"
           onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
           onWheel={onWheel}
           style={{
             backgroundImage:
