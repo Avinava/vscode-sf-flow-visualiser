@@ -79,12 +79,16 @@ interface ParsedFlow {
 }
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS - Salesforce-style layout parameters
 // ============================================================================
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 56;
-const V_GAP = 90; // Vertical gap between rows
-const H_GAP = 280; // Horizontal gap between branches
+
+// Salesforce-style spacing (based on their default layout config)
+const GRID_H_GAP = 80; // Horizontal gap between adjacent nodes (wider for complex flows)
+const GRID_V_GAP = 80; // Vertical gap between rows
+const START_X = 800; // Canvas center X (increased for wider flows)
+const START_Y = 80; // Canvas top Y
 
 const NODE_CONFIG: Record<
   NodeType,
@@ -455,8 +459,38 @@ function parseFlowXML(xmlText: string): ParsedFlow {
 }
 
 // ============================================================================
-// AUTO LAYOUT - Salesforce-style Tree Layout with proper merge handling
+// AUTO LAYOUT - Salesforce-style Tree Layout
 // ============================================================================
+// 
+// Key principles from Salesforce's approach:
+// 1. Build a tree structure with branches from decision/wait/loop nodes
+// 2. Calculate width of each subtree recursively
+// 3. Position branches symmetrically around parent's X position
+// 4. Track merge points where branches converge
+// 5. Use consistent spacing with clear visual hierarchy
+
+interface LayoutNode {
+  id: string;
+  node: FlowNode;
+  children: LayoutBranch[];
+  mergePoint?: string; // The node where branches merge
+  depth: number; // Depth within current branch (for vertical position)
+  subtreeWidth: number; // Width of subtree in grid units
+  x: number; // Final X position
+  y: number; // Final Y position
+  parent?: LayoutNode;
+  branchIndex?: number; // Which branch this node belongs to
+}
+
+interface LayoutBranch {
+  label?: string;
+  target: string;
+  edge: FlowEdge;
+  nodes: LayoutNode[];
+  width: number; // Width in grid units
+  depth: number; // Maximum depth of this branch
+  terminates: boolean; // Whether this branch ends (no merge)
+}
 
 function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   if (nodes.length === 0) return nodes;
@@ -472,312 +506,316 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
     incoming.get(e.target)!.push(e);
   });
 
-  // Find merge points - nodes that have multiple incoming normal edges
-  const mergePointSources = new Map<string, Set<string>>();
+  // Detect merge points - nodes that have multiple incoming normal edges
+  const mergePoints = new Map<string, string[]>(); // mergeId -> source node ids
   incoming.forEach((inEdges, nodeId) => {
     const normalIncoming = inEdges.filter(
       (e) => e.type !== "fault" && e.type !== "fault-end"
     );
     if (normalIncoming.length > 1) {
-      mergePointSources.set(
-        nodeId,
-        new Set(normalIncoming.map((e) => e.source))
-      );
+      mergePoints.set(nodeId, normalIncoming.map((e) => e.source));
     }
   });
 
-  // Calculate depth of each branch (how many nodes before reaching merge/end)
-  function getBranchDepth(
-    startId: string,
-    mergePoint?: string,
-    visited = new Set<string>()
-  ): number {
-    if (!startId || visited.has(startId)) return 0;
-    if (mergePoint && startId === mergePoint) return 0;
-
-    const node = nodeMap.get(startId);
-    if (!node) return 0;
-
-    visited.add(startId);
-
-    const outs = outgoing.get(startId) || [];
-    const normalOuts = outs.filter(
-      (e) => e.type !== "fault" && e.type !== "fault-end"
-    );
-
-    if (normalOuts.length === 0) return 1;
-
-    // For branching nodes, get max depth of all branches
-    if (
-      node.type === "DECISION" ||
-      node.type === "WAIT" ||
-      node.type === "LOOP"
-    ) {
-      let maxDepth = 0;
-      normalOuts.forEach((e) => {
-        const depth = getBranchDepth(e.target, mergePoint, new Set(visited));
-        maxDepth = Math.max(maxDepth, depth);
-      });
-      return 1 + maxDepth;
-    }
-
-    // For linear nodes, follow the path
-    return 1 + getBranchDepth(normalOuts[0].target, mergePoint, visited);
-  }
-
-  // Find merge point for branches of a decision node
-  function findMergePoint(branchTargets: string[]): string | undefined {
+  // Find the merge point for a branching node
+  function findMergePointForBranches(branchTargets: string[]): string | undefined {
     if (branchTargets.length < 2) return undefined;
 
-    // Get all reachable nodes from each branch
-    const reachableSets: Map<string, number>[] = branchTargets.map(
-      () => new Map()
-    );
-
-    branchTargets.forEach((target, idx) => {
-      const visited = new Set<string>();
+    // BFS from each branch to find common reachable nodes
+    const reachable = branchTargets.map((target) => {
+      const reached = new Map<string, number>(); // nodeId -> depth
       const queue: { id: string; depth: number }[] = [{ id: target, depth: 0 }];
+      const visited = new Set<string>();
 
       while (queue.length > 0) {
         const { id, depth } = queue.shift()!;
         if (visited.has(id)) continue;
         visited.add(id);
-        reachableSets[idx].set(id, depth);
+        reached.set(id, depth);
 
-        const outs = outgoing.get(id) || [];
-        outs.forEach((e) => {
-          if (e.type !== "fault" && e.type !== "fault-end") {
-            queue.push({ id: e.target, depth: depth + 1 });
-          }
-        });
+        const outs = (outgoing.get(id) || []).filter(
+          (e) => e.type !== "fault" && e.type !== "fault-end"
+        );
+        outs.forEach((e) => queue.push({ id: e.target, depth: depth + 1 }));
       }
+      return reached;
     });
 
-    // Find first common node with minimum total depth
+    // Find closest common node
     let bestMerge: string | undefined;
-    let bestMinDepth = Infinity;
+    let bestTotalDepth = Infinity;
 
-    const firstSet = reachableSets[0];
-    for (const [nodeId, depth0] of firstSet) {
-      const depths = [depth0];
+    const firstReach = reachable[0];
+    for (const [nodeId, depth0] of firstReach) {
       let isCommon = true;
+      let totalDepth = depth0;
 
-      for (let i = 1; i < reachableSets.length; i++) {
-        const depthI = reachableSets[i].get(nodeId);
+      for (let i = 1; i < reachable.length; i++) {
+        const depthI = reachable[i].get(nodeId);
         if (depthI === undefined) {
           isCommon = false;
           break;
         }
-        depths.push(depthI);
+        totalDepth += depthI;
       }
 
-      if (isCommon) {
-        const minDepth = Math.min(...depths);
-        if (minDepth < bestMinDepth) {
-          bestMinDepth = minDepth;
-          bestMerge = nodeId;
-        }
+      if (isCommon && totalDepth < bestTotalDepth) {
+        bestTotalDepth = totalDepth;
+        bestMerge = nodeId;
       }
     }
 
     return bestMerge;
   }
 
-  // Position nodes
-  const positions = new Map<
-    string,
-    { x: number; y: number; col: number; row: number }
-  >();
-  const columnOccupancy = new Map<number, Map<number, string>>(); // row -> col -> nodeId
+  // Calculate the depth (height in rows) of a branch until merge point or termination
+  function calculateBranchDepth(
+    startId: string,
+    stopAt?: string,
+    visited = new Set<string>()
+  ): number {
+    if (!startId || visited.has(startId)) return 0;
+    if (stopAt && startId === stopAt) return 0;
 
-  function isPositionFree(col: number, row: number): boolean {
-    const rowOccupancy = columnOccupancy.get(row);
-    return !rowOccupancy || !rowOccupancy.has(col);
-  }
+    const node = nodeMap.get(startId);
+    if (!node) return 0;
 
-  function occupyPosition(col: number, row: number, nodeId: string): void {
-    if (!columnOccupancy.has(row)) columnOccupancy.set(row, new Map());
-    columnOccupancy.get(row)!.set(col, nodeId);
-  }
+    visited.add(startId);
 
-  function findFreeColumn(preferredCol: number, row: number): number {
-    if (isPositionFree(preferredCol, row)) return preferredCol;
+    const outs = (outgoing.get(startId) || []).filter(
+      (e) => e.type !== "fault" && e.type !== "fault-end"
+    );
 
-    // Search outward from preferred column
-    for (let offset = 1; offset < 50; offset++) {
-      if (isPositionFree(preferredCol + offset, row))
-        return preferredCol + offset;
-      if (isPositionFree(preferredCol - offset, row))
-        return preferredCol - offset;
+    if (outs.length === 0) return 1; // Terminal node
+
+    // For branching nodes, include all their branches' depth
+    const nodeType = node.type;
+    if (nodeType === "DECISION" || nodeType === "WAIT") {
+      const branchTargets = outs.map((e) => e.target);
+      const merge = findMergePointForBranches(branchTargets);
+      
+      let maxBranchDepth = 0;
+      outs.forEach((e) => {
+        const depth = calculateBranchDepth(e.target, merge, new Set(visited));
+        maxBranchDepth = Math.max(maxBranchDepth, depth);
+      });
+      
+      // After branches, continue from merge point
+      const afterMerge = merge ? calculateBranchDepth(merge, stopAt, new Set(visited)) : 0;
+      return 1 + maxBranchDepth + afterMerge;
     }
-    return preferredCol;
+
+    if (nodeType === "LOOP") {
+      const forEachEdge = outs.find((e) => e.type === "loop-next");
+      const afterLastEdge = outs.find((e) => e.type === "loop-end");
+      
+      const loopBodyDepth = forEachEdge 
+        ? calculateBranchDepth(forEachEdge.target, startId, new Set(visited)) 
+        : 0;
+      const afterLoopDepth = afterLastEdge 
+        ? calculateBranchDepth(afterLastEdge.target, stopAt, new Set(visited)) 
+        : 0;
+      
+      return 1 + Math.max(loopBodyDepth, 1) + afterLoopDepth;
+    }
+
+    // Linear node
+    return 1 + calculateBranchDepth(outs[0].target, stopAt, visited);
   }
 
-  // Layout the flow starting from START_NODE
-  const visited = new Set<string>();
-  const startCol = 0;
-  const startRow = 0;
+  // Calculate the width of a subtree (for horizontal positioning)
+  function calculateSubtreeWidth(
+    startId: string,
+    stopAt?: string,
+    visited = new Set<string>()
+  ): number {
+    if (!startId || visited.has(startId)) return 1;
+    if (stopAt && startId === stopAt) return 0;
 
-  interface LayoutTask {
-    nodeId: string;
-    col: number;
-    row: number;
-    stopAtMerge?: string;
+    const node = nodeMap.get(startId);
+    if (!node) return 1;
+
+    visited.add(startId);
+
+    const outs = (outgoing.get(startId) || []).filter(
+      (e) => e.type !== "fault" && e.type !== "fault-end"
+    );
+
+    if (outs.length === 0) return 1;
+
+    const nodeType = node.type;
+    if (nodeType === "DECISION" || nodeType === "WAIT") {
+      const branchTargets = outs.map((e) => e.target);
+      const merge = findMergePointForBranches(branchTargets);
+      
+      // Total width is sum of all branch widths
+      let totalWidth = 0;
+      outs.forEach((e) => {
+        const branchWidth = calculateSubtreeWidth(e.target, merge, new Set(visited));
+        totalWidth += Math.max(branchWidth, 1);
+      });
+      
+      // Width after merge
+      const afterMergeWidth = merge ? calculateSubtreeWidth(merge, stopAt, new Set(visited)) : 0;
+      
+      return Math.max(totalWidth, afterMergeWidth, 1);
+    }
+
+    if (nodeType === "LOOP") {
+      const forEachEdge = outs.find((e) => e.type === "loop-next");
+      const afterLastEdge = outs.find((e) => e.type === "loop-end");
+      
+      const loopBodyWidth = forEachEdge 
+        ? calculateSubtreeWidth(forEachEdge.target, startId, new Set(visited)) 
+        : 1;
+      const afterLoopWidth = afterLastEdge 
+        ? calculateSubtreeWidth(afterLastEdge.target, stopAt, new Set(visited)) 
+        : 1;
+      
+      // Loop needs at least 2 columns: loop body + main path
+      return Math.max(loopBodyWidth + 1, afterLoopWidth, 2);
+    }
+
+    // Linear node
+    return calculateSubtreeWidth(outs[0].target, stopAt, visited);
   }
 
-  const queue: LayoutTask[] = [
-    { nodeId: "START_NODE", col: startCol, row: startRow },
-  ];
+  // Position nodes using recursive tree layout
+  const positions = new Map<string, { x: number; y: number }>();
+  const ROW_HEIGHT = NODE_HEIGHT + GRID_V_GAP;
+  const COL_WIDTH = NODE_WIDTH + GRID_H_GAP;
 
-  while (queue.length > 0) {
-    const task = queue.shift()!;
-    const { nodeId, stopAtMerge } = task;
-    let { col, row } = task;
-
-    if (visited.has(nodeId)) continue;
-    if (stopAtMerge && nodeId === stopAtMerge) continue;
+  function layoutNode(
+    nodeId: string,
+    centerX: number,
+    row: number,
+    stopAt?: string,
+    visited = new Set<string>()
+  ): void {
+    if (!nodeId || visited.has(nodeId)) return;
+    if (stopAt && nodeId === stopAt) return;
 
     const node = nodeMap.get(nodeId);
-    if (!node) continue;
+    if (!node) return;
 
     visited.add(nodeId);
 
-    // Find free position
-    col = findFreeColumn(col, row);
-    occupyPosition(col, row, nodeId);
-    positions.set(nodeId, { x: 0, y: 0, col, row });
+    // Position this node
+    const y = START_Y + row * ROW_HEIGHT;
+    positions.set(nodeId, { x: centerX, y });
 
-    const outs = outgoing.get(nodeId) || [];
-    const normalOuts = outs.filter(
+    const outs = (outgoing.get(nodeId) || []).filter(
       (e) => e.type !== "fault" && e.type !== "fault-end"
     );
-    const faultOuts = outs.filter(
+    const faultOuts = (outgoing.get(nodeId) || []).filter(
       (e) => e.type === "fault" || e.type === "fault-end"
     );
 
-    // Handle fault paths - they go to the right
-    faultOuts.forEach((edge) => {
+    // Handle fault paths - position to the right
+    faultOuts.forEach((edge, i) => {
       if (!visited.has(edge.target)) {
-        queue.push({ nodeId: edge.target, col: col + 3, row: row });
+        layoutNode(edge.target, centerX + COL_WIDTH * (2 + i), row, undefined, new Set(visited));
       }
     });
 
-    if (node.type === "DECISION" || node.type === "WAIT") {
-      // Branching node - spread branches horizontally
-      const branchTargets = normalOuts.map((e) => e.target);
-      const mergePoint = findMergePoint(branchTargets);
+    if (outs.length === 0) return;
 
-      // Sort branches: named first, default last
-      const sortedOuts = [...normalOuts].sort((a, b) => {
-        if (a.label?.includes("Default")) return 1;
-        if (b.label?.includes("Default")) return -1;
+    const nodeType = node.type;
+
+    if (nodeType === "DECISION" || nodeType === "WAIT") {
+      const branchTargets = outs.map((e) => e.target);
+      const mergePoint = findMergePointForBranches(branchTargets);
+
+      // Sort branches: named outcomes left, default right
+      const sortedOuts = [...outs].sort((a, b) => {
+        const aIsDefault = a.label?.toLowerCase().includes("default") || a.label === "Other";
+        const bIsDefault = b.label?.toLowerCase().includes("default") || b.label === "Other";
+        if (aIsDefault && !bIsDefault) return 1;
+        if (!aIsDefault && bIsDefault) return -1;
         return 0;
       });
 
-      const numBranches = sortedOuts.length;
-      const branchStartCol = col - Math.floor((numBranches - 1) / 2);
+      // Calculate widths of each branch
+      const branchWidths = sortedOuts.map((e) => 
+        Math.max(calculateSubtreeWidth(e.target, mergePoint, new Set(visited)), 1)
+      );
+      const totalWidth = branchWidths.reduce((a, b) => a + b, 0);
+
+      // Position branches centered around parent's X
+      let currentX = centerX - (totalWidth * COL_WIDTH) / 2 + COL_WIDTH / 2;
+      let maxBranchDepth = 0;
 
       sortedOuts.forEach((edge, idx) => {
+        const branchWidth = branchWidths[idx];
+        const branchCenterX = currentX + (branchWidth - 1) * COL_WIDTH / 2;
+        
         if (!visited.has(edge.target)) {
-          const branchCol = branchStartCol + idx;
-          queue.push({
-            nodeId: edge.target,
-            col: branchCol,
-            row: row + 1,
-            stopAtMerge: mergePoint,
-          });
+          layoutNode(edge.target, branchCenterX, row + 1, mergePoint, new Set(visited));
         }
+
+        const branchDepth = calculateBranchDepth(edge.target, mergePoint, new Set(visited));
+        maxBranchDepth = Math.max(maxBranchDepth, branchDepth);
+        
+        currentX += branchWidth * COL_WIDTH;
       });
 
-      // Schedule merge point to be processed after branches
+      // Layout after merge point
       if (mergePoint && !visited.has(mergePoint)) {
-        // Calculate row for merge point based on max branch depth
-        let maxBranchDepth = 0;
-        sortedOuts.forEach((e) => {
-          const depth = getBranchDepth(e.target, mergePoint);
-          maxBranchDepth = Math.max(maxBranchDepth, depth);
-        });
-
-        queue.push({
-          nodeId: mergePoint,
-          col: col,
-          row: row + 1 + maxBranchDepth,
-        });
+        layoutNode(mergePoint, centerX, row + 1 + maxBranchDepth, stopAt, visited);
       }
-    } else if (node.type === "LOOP") {
-      // Loop: "For Each" branch, then "After Last" continues
+
+    } else if (nodeType === "LOOP") {
       const forEachEdge = outs.find((e) => e.type === "loop-next");
       const afterLastEdge = outs.find((e) => e.type === "loop-end");
 
+      const loopBodyWidth = forEachEdge 
+        ? calculateSubtreeWidth(forEachEdge.target, nodeId, new Set(visited))
+        : 1;
+      
+      // Position "For Each" branch to the left
       if (forEachEdge && !visited.has(forEachEdge.target)) {
-        queue.push({
-          nodeId: forEachEdge.target,
-          col: col - 1,
-          row: row + 1,
-        });
+        const loopBodyX = centerX - COL_WIDTH * (loopBodyWidth / 2 + 0.5);
+        layoutNode(forEachEdge.target, loopBodyX, row + 1, nodeId, new Set(visited));
       }
 
+      // Calculate loop body depth for "After Last" positioning
+      const loopBodyDepth = forEachEdge 
+        ? calculateBranchDepth(forEachEdge.target, nodeId, new Set(visited))
+        : 1;
+
+      // Position "After Last" below the loop
       if (afterLastEdge && !visited.has(afterLastEdge.target)) {
-        // Calculate depth of loop body
-        const loopBodyDepth = forEachEdge
-          ? getBranchDepth(forEachEdge.target, nodeId)
-          : 0;
-
-        queue.push({
-          nodeId: afterLastEdge.target,
-          col: col,
-          row: row + 1 + Math.max(loopBodyDepth, 1),
-        });
+        layoutNode(afterLastEdge.target, centerX, row + 1 + loopBodyDepth, stopAt, visited);
       }
+
     } else {
       // Linear node - continue down
-      normalOuts.forEach((edge) => {
+      outs.forEach((edge) => {
         if (!visited.has(edge.target)) {
-          queue.push({
-            nodeId: edge.target,
-            col: col,
-            row: row + 1,
-          });
+          layoutNode(edge.target, centerX, row + 1, stopAt, visited);
         }
       });
     }
   }
 
-  // Handle unvisited nodes (shouldn't happen normally)
+  // Start layout from START_NODE
+  layoutNode("START_NODE", START_X, 0);
+
+  // Handle any unvisited nodes (shouldn't happen normally)
   let maxRow = 0;
-  positions.forEach((p) => (maxRow = Math.max(maxRow, p.row)));
+  positions.forEach((p) => {
+    maxRow = Math.max(maxRow, Math.floor((p.y - START_Y) / ROW_HEIGHT));
+  });
 
   nodes.forEach((n) => {
     if (!positions.has(n.id)) {
       maxRow++;
-      positions.set(n.id, { x: 0, y: 0, col: 5, row: maxRow });
-    }
-  });
-
-  // Convert grid positions to pixel coordinates
-  const GRID_X_SPACING = H_GAP;
-  const GRID_Y_SPACING = NODE_HEIGHT + V_GAP;
-  const CENTER_X = 600;
-  const START_Y = 80;
-
-  positions.forEach((pos) => {
-    pos.x = CENTER_X + pos.col * GRID_X_SPACING;
-    pos.y = START_Y + pos.row * GRID_Y_SPACING;
-  });
-
-  // Adjust fault-end nodes to be horizontally aligned with source
-  edges.forEach((e) => {
-    if (e.type === "fault-end") {
-      const srcPos = positions.get(e.source);
-      const tgtPos = positions.get(e.target);
-      if (srcPos && tgtPos) {
-        tgtPos.y = srcPos.y;
-      }
+      positions.set(n.id, { x: START_X + 400, y: START_Y + maxRow * ROW_HEIGHT });
     }
   });
 
   return nodes.map((n) => {
-    const pos = positions.get(n.id) || { x: 0, y: 0 };
+    const pos = positions.get(n.id) || { x: START_X, y: START_Y };
     return { ...n, x: pos.x - n.width / 2, y: pos.y };
   });
 }
@@ -876,12 +914,221 @@ const App: React.FC = () => {
     setScale((s) => Math.min(Math.max(0.2, s + delta), 2));
   };
 
-  // Render edges
+  // Render edges - Salesforce-style connectors
+  // Key insight: Salesforce draws branch connectors with a horizontal "branch line"
+  // that spreads from the parent, with each child's connector dropping down from it
+  // Also draws "merge lines" where multiple branches converge to the same node
   const renderEdges = () => {
-    return parsedData.edges.map((edge) => {
+    // Group edges by source and target to detect branching and merging
+    const edgesBySource = new Map<string, FlowEdge[]>();
+    const edgesByTarget = new Map<string, FlowEdge[]>();
+    parsedData.edges.forEach((edge) => {
+      const sourceList = edgesBySource.get(edge.source) || [];
+      sourceList.push(edge);
+      edgesBySource.set(edge.source, sourceList);
+      
+      const targetList = edgesByTarget.get(edge.target) || [];
+      targetList.push(edge);
+      edgesByTarget.set(edge.target, targetList);
+    });
+
+    // Identify which sources are branch nodes (DECISION, WAIT, LOOP with multiple outputs)
+    const branchNodes = new Set<string>();
+    parsedData.nodes.forEach((n) => {
+      if (n.type === "DECISION" || n.type === "WAIT" || n.type === "LOOP") {
+        branchNodes.add(n.id);
+      }
+    });
+
+    // Identify merge points (nodes with multiple incoming non-fault edges)
+    const mergeNodes = new Set<string>();
+    edgesByTarget.forEach((edges, targetId) => {
+      const normalEdges = edges.filter(e => e.type !== "fault" && e.type !== "fault-end");
+      if (normalEdges.length > 1) {
+        mergeNodes.add(targetId);
+      }
+    });
+
+    const rendered: JSX.Element[] = [];
+    const handledEdges = new Set<string>(); // Track edges already rendered
+
+    // First, render branch "spread lines" for decision/wait nodes
+    branchNodes.forEach((nodeId) => {
+      const srcNode = parsedData.nodes.find((n) => n.id === nodeId);
+      if (!srcNode) return;
+
+      const edges = edgesBySource.get(nodeId) || [];
+      // Filter to only normal branch edges (not fault)
+      const branchEdges = edges.filter(
+        (e) =>
+          e.type !== "fault" &&
+          e.type !== "fault-end" &&
+          e.type !== "loop-end"
+      );
+
+      if (branchEdges.length > 1 || srcNode.type === "LOOP") {
+        // This is a branching point - draw the horizontal branch line
+        const srcCenterX = srcNode.x + srcNode.width / 2;
+        const srcBottomY = srcNode.y + srcNode.height;
+
+        // Find all target positions
+        const targetPositions = branchEdges
+          .map((e) => {
+            const tgt = parsedData.nodes.find((n) => n.id === e.target);
+            return tgt ? { edge: e, x: tgt.x + tgt.width / 2, y: tgt.y } : null;
+          })
+          .filter((t): t is NonNullable<typeof t> => t !== null);
+
+        if (targetPositions.length > 0) {
+          // Calculate branch line Y position (fixed distance from source)
+          const branchLineY = srcBottomY + 35;
+
+          // Find leftmost and rightmost branch targets
+          const xs = targetPositions.map((t) => t.x);
+          const minX = Math.min(...xs, srcCenterX);
+          const maxX = Math.max(...xs, srcCenterX);
+
+          // Draw horizontal branch line
+          rendered.push(
+            <path
+              key={`branch-line-${nodeId}`}
+              d={`M ${minX} ${branchLineY} L ${maxX} ${branchLineY}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth={2}
+            />
+          );
+
+          // Draw vertical connector from source to branch line
+          rendered.push(
+            <path
+              key={`branch-stem-${nodeId}`}
+              d={`M ${srcCenterX} ${srcBottomY} L ${srcCenterX} ${branchLineY}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth={2}
+            />
+          );
+
+          // Draw vertical connectors from branch line to each target
+          targetPositions.forEach(({ edge, x, y }) => {
+            handledEdges.add(edge.id);
+            rendered.push(
+              <g key={`branch-drop-${edge.id}`}>
+                <path
+                  d={`M ${x} ${branchLineY} L ${x} ${y}`}
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  markerEnd="url(#arrow)"
+                />
+                {edge.label && (
+                  <foreignObject
+                    x={x - 60}
+                    y={branchLineY - 22}
+                    width={120}
+                    height={24}
+                    style={{ overflow: "visible" }}
+                  >
+                    <div className="text-[10px] px-2 py-0.5 bg-white text-slate-600 border border-slate-200 rounded-full text-center truncate shadow-sm max-w-[110px] mx-auto">
+                      {edge.label}
+                    </div>
+                  </foreignObject>
+                )}
+              </g>
+            );
+          });
+        }
+      }
+    });
+
+    // Render merge lines for nodes with multiple incoming edges FROM THE SAME DECISION
+    // This is the "diamond" pattern where branches from one decision converge
+    mergeNodes.forEach((targetId) => {
+      const tgtNode = parsedData.nodes.find((n) => n.id === targetId);
+      if (!tgtNode) return;
+
+      const incomingEdges = (edgesByTarget.get(targetId) || []).filter(
+        (e) => e.type !== "fault" && e.type !== "fault-end" && !handledEdges.has(e.id)
+      );
+
+      // Only draw merge lines if we have 2+ unhandled incoming edges
+      // AND they come from different nodes (not already part of branch rendering)
+      if (incomingEdges.length > 1) {
+        const tgtCenterX = tgtNode.x + tgtNode.width / 2;
+        const tgtTopY = tgtNode.y;
+
+        // Get source positions for unhandled edges
+        const sourcePositions = incomingEdges
+          .map((e) => {
+            const src = parsedData.nodes.find((n) => n.id === e.source);
+            return src ? { edge: e, x: src.x + src.width / 2, y: src.y + src.height } : null;
+          })
+          .filter((s): s is NonNullable<typeof s> => s !== null);
+
+        // Check if all sources are at the same Y level (siblings from same parent)
+        const sourceYs = new Set(sourcePositions.map(s => Math.round(s.y / 10) * 10)); // Round to reduce precision issues
+        const allSameLevel = sourceYs.size === 1;
+
+        if (sourcePositions.length > 1 && allSameLevel) {
+          // Calculate merge line Y position (fixed distance above target)
+          const mergeLineY = tgtTopY - 35;
+
+          // Find leftmost and rightmost sources
+          const xs = sourcePositions.map((s) => s.x);
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+
+          // Draw horizontal merge line
+          rendered.push(
+            <path
+              key={`merge-line-${targetId}`}
+              d={`M ${minX} ${mergeLineY} L ${maxX} ${mergeLineY}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth={2}
+            />
+          );
+
+          // Draw vertical connector from merge line to target
+          rendered.push(
+            <path
+              key={`merge-stem-${targetId}`}
+              d={`M ${tgtCenterX} ${mergeLineY} L ${tgtCenterX} ${tgtTopY}`}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth={2}
+              markerEnd="url(#arrow)"
+            />
+          );
+
+          // Draw connectors from each source to the merge line
+          sourcePositions.forEach(({ edge, x, y }) => {
+            handledEdges.add(edge.id);
+            rendered.push(
+              <path
+                key={`merge-drop-${edge.id}`}
+                d={`M ${x} ${y} L ${x} ${mergeLineY}`}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth={2}
+              />
+            );
+          });
+        }
+      }
+    });
+
+    // Now render all other edges (non-branch, non-merge connectors)
+    parsedData.edges.forEach((edge) => {
+      // Skip edges already handled by branch or merge rendering
+      if (handledEdges.has(edge.id)) {
+        return;
+      }
+
       const src = parsedData.nodes.find((n) => n.id === edge.source);
       const tgt = parsedData.nodes.find((n) => n.id === edge.target);
-      if (!src || !tgt) return null;
+      if (!src || !tgt) return;
 
       const srcCenterX = src.x + src.width / 2;
       const srcBottomY = src.y + src.height;
@@ -898,6 +1145,23 @@ const App: React.FC = () => {
       const isLoopNext = edge.type === "loop-next";
       const isLoopEnd = edge.type === "loop-end";
 
+      // Skip branch edges that weren't captured (fallback check)
+      const srcEdges = edgesBySource.get(edge.source) || [];
+      const isBranchChild =
+        branchNodes.has(edge.source) &&
+        !isFault &&
+        !isFaultEnd &&
+        !isLoopEnd &&
+        srcEdges.filter((e) => e.type !== "fault" && e.type !== "fault-end" && e.type !== "loop-end").length > 1;
+      
+      // For loop nodes, loop-next is handled as a branch
+      const isLoopBranch = 
+        src.type === "LOOP" && isLoopNext;
+
+      if (isBranchChild || isLoopBranch) {
+        return; // Already rendered as part of branch
+      }
+
       // Check if this is a loop-back connector (target is above source)
       const isLoopBack =
         !isFault &&
@@ -905,33 +1169,51 @@ const App: React.FC = () => {
         !isLoopNext &&
         !isLoopEnd &&
         tgtTopY < srcBottomY;
-
+      
       let path: string;
       const showAsRed = isFault || isFaultEnd;
 
+      const FAULT_HORIZONTAL_OFFSET = 60;
+
       if (isFaultEnd) {
         // Horizontal path for fault-end connectors
-        path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${srcCenterY}`;
+        path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${tgtCenterY}`;
       } else if (isFault) {
-        // Fault connectors go to the right
-        const midX = srcRightX + 30;
-        path = `M ${srcRightX} ${srcCenterY} L ${midX} ${srcCenterY} L ${midX} ${tgtCenterY} L ${tgtLeftX} ${tgtCenterY}`;
+        // Fault connectors: exit from right side
+        const horizontalEndX = srcRightX + FAULT_HORIZONTAL_OFFSET;
+        const cornerRadius = 10;
+
+        if (Math.abs(tgtCenterY - srcCenterY) < 20) {
+          path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${tgtCenterY}`;
+        } else if (tgtCenterY > srcCenterY) {
+          path = `M ${srcRightX} ${srcCenterY} 
+                  L ${horizontalEndX - cornerRadius} ${srcCenterY}
+                  Q ${horizontalEndX} ${srcCenterY}, ${horizontalEndX} ${srcCenterY + cornerRadius}
+                  L ${horizontalEndX} ${tgtCenterY - cornerRadius}
+                  Q ${horizontalEndX} ${tgtCenterY}, ${horizontalEndX + cornerRadius} ${tgtCenterY}
+                  L ${tgtLeftX} ${tgtCenterY}`;
+        } else {
+          path = `M ${srcRightX} ${srcCenterY} 
+                  L ${horizontalEndX - cornerRadius} ${srcCenterY}
+                  Q ${horizontalEndX} ${srcCenterY}, ${horizontalEndX} ${srcCenterY - cornerRadius}
+                  L ${horizontalEndX} ${tgtCenterY + cornerRadius}
+                  Q ${horizontalEndX} ${tgtCenterY}, ${horizontalEndX + cornerRadius} ${tgtCenterY}
+                  L ${tgtLeftX} ${tgtCenterY}`;
+        }
       } else if (isLoopBack) {
         // Loop-back connector: go left and up
-        const offsetX = Math.min(
-          50,
-          Math.abs(srcCenterX - tgtCenterX) / 2 + 30
-        );
+        const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
         const leftX = Math.min(srcCenterX, tgtCenterX) - offsetX;
+        const cornerRadius = 15;
         path = `M ${srcCenterX} ${srcBottomY} 
                 L ${srcCenterX} ${srcBottomY + 20} 
-                Q ${srcCenterX} ${srcBottomY + 35}, ${srcCenterX - 15} ${srcBottomY + 35}
-                L ${leftX + 15} ${srcBottomY + 35}
-                Q ${leftX} ${srcBottomY + 35}, ${leftX} ${srcBottomY + 20}
+                Q ${srcCenterX} ${srcBottomY + 20 + cornerRadius}, ${srcCenterX - cornerRadius} ${srcBottomY + 20 + cornerRadius}
+                L ${leftX + cornerRadius} ${srcBottomY + 20 + cornerRadius}
+                Q ${leftX} ${srcBottomY + 20 + cornerRadius}, ${leftX} ${srcBottomY + 20}
                 L ${leftX} ${tgtTopY + 20}
-                Q ${leftX} ${tgtTopY - 15}, ${leftX + 15} ${tgtTopY - 15}
-                L ${tgtCenterX - 15} ${tgtTopY - 15}
-                Q ${tgtCenterX} ${tgtTopY - 15}, ${tgtCenterX} ${tgtTopY}`;
+                Q ${leftX} ${tgtTopY - cornerRadius}, ${leftX + cornerRadius} ${tgtTopY - cornerRadius}
+                L ${tgtCenterX - cornerRadius} ${tgtTopY - cornerRadius}
+                Q ${tgtCenterX} ${tgtTopY - cornerRadius}, ${tgtCenterX} ${tgtTopY}`;
       } else if (Math.abs(tgtCenterX - srcCenterX) < 5) {
         // Straight vertical line
         path = `M ${srcCenterX} ${srcBottomY} L ${tgtCenterX} ${tgtTopY}`;
@@ -943,7 +1225,6 @@ const App: React.FC = () => {
         const sign = dx > 0 ? 1 : -1;
 
         if (Math.abs(tgtTopY - srcBottomY) < 40) {
-          // Very close vertically - simple horizontal routing
           path = `M ${srcCenterX} ${srcBottomY} 
                   L ${srcCenterX} ${srcBottomY + 15}
                   Q ${srcCenterX} ${srcBottomY + 25}, ${srcCenterX + sign * 10} ${srcBottomY + 25}
@@ -951,7 +1232,6 @@ const App: React.FC = () => {
                   Q ${tgtCenterX} ${srcBottomY + 25}, ${tgtCenterX} ${srcBottomY + 35}
                   L ${tgtCenterX} ${tgtTopY}`;
         } else {
-          // Standard orthogonal with rounded corners
           path = `M ${srcCenterX} ${srcBottomY} 
                   L ${srcCenterX} ${verticalMid - cornerRadius}
                   Q ${srcCenterX} ${verticalMid}, ${srcCenterX + sign * cornerRadius} ${verticalMid}
@@ -965,22 +1245,20 @@ const App: React.FC = () => {
       let labelX = (srcCenterX + tgtCenterX) / 2;
       let labelY = srcBottomY + 20;
 
-      if (isFault) {
-        // Fault label should be on the horizontal segment going right from source
-        // The path goes: right from source, then down/up to target
-        const midX = srcRightX + 30;
-        labelX = srcRightX + (midX - srcRightX) / 2 + 20; // On the first horizontal segment
-        labelY = srcCenterY - 12;
-      } else if (isFaultEnd) {
-        // Fault-end label on the horizontal line
-        labelX = (srcRightX + tgtLeftX) / 2;
-        labelY = srcCenterY - 12;
+      if (isFault || isFaultEnd) {
+        labelX = srcRightX + 35;
+        labelY = srcCenterY - 18;
       } else if (isLoopBack) {
-        labelX = Math.min(srcCenterX, tgtCenterX) - 60;
+        const leftX = Math.min(srcCenterX, tgtCenterX) - 50;
+        labelX = leftX - 30;
         labelY = (srcBottomY + tgtTopY) / 2;
+      } else if (isLoopEnd) {
+        // After Last label - position below the loop node
+        labelX = srcCenterX;
+        labelY = srcBottomY + 18;
       }
 
-      return (
+      rendered.push(
         <g key={edge.id}>
           <path
             d={path}
@@ -992,15 +1270,15 @@ const App: React.FC = () => {
           />
           {edge.label && (
             <foreignObject
-              x={labelX - 60}
+              x={labelX - 50}
               y={labelY - 8}
-              width={120}
+              width={100}
               height={30}
               style={{ overflow: "visible" }}
             >
               <div
-                className={`text-[10px] px-2 py-1 rounded-full text-center truncate border shadow-sm max-w-[110px] mx-auto
-                ${showAsRed ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-slate-600 border-slate-200"}`}
+                className={`text-[10px] px-2 py-0.5 rounded-full text-center truncate border shadow-sm mx-auto
+                ${showAsRed ? "bg-red-500 text-white border-red-600 font-medium" : "bg-white text-slate-600 border-slate-200 max-w-[90px]"}`}
               >
                 {edge.label}
               </div>
@@ -1009,6 +1287,8 @@ const App: React.FC = () => {
         </g>
       );
     });
+
+    return rendered;
   };
 
   const title =
