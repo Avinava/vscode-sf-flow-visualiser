@@ -83,8 +83,8 @@ interface ParsedFlow {
 // ============================================================================
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 56;
-const V_GAP = 80;
-const H_GAP = 260;
+const V_GAP = 90; // Vertical gap between rows
+const H_GAP = 280; // Horizontal gap between branches
 
 const NODE_CONFIG: Record<
   NodeType,
@@ -455,8 +455,9 @@ function parseFlowXML(xmlText: string): ParsedFlow {
 }
 
 // ============================================================================
-// AUTO LAYOUT - Salesforce-style
+// AUTO LAYOUT - Salesforce-style Tree Layout with proper merge handling
 // ============================================================================
+
 function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   if (nodes.length === 0) return nodes;
 
@@ -471,186 +472,285 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
     incoming.get(e.target)!.push(e);
   });
 
-  // Track positioned nodes
-  const positions = new Map<string, { x: number; y: number }>();
-  const visited = new Set<string>();
-
-  // Find convergence points (nodes with multiple incoming edges)
-  const convergencePoints = new Set<string>();
+  // Find merge points - nodes that have multiple incoming normal edges
+  const mergePointSources = new Map<string, Set<string>>();
   incoming.forEach((inEdges, nodeId) => {
-    if (inEdges.length > 1) convergencePoints.add(nodeId);
+    const normalIncoming = inEdges.filter(
+      (e) => e.type !== "fault" && e.type !== "fault-end"
+    );
+    if (normalIncoming.length > 1) {
+      mergePointSources.set(nodeId, new Set(normalIncoming.map((e) => e.source)));
+    }
   });
 
-  // BFS layout starting from START_NODE
-  const startX = 500;
-  const startY = 60;
-
-  interface QueueItem {
-    id: string;
-    row: number;
-    col: number;
-    fromLoop?: boolean;
-    branchOffset?: number;
+  // Calculate depth of each branch (how many nodes before reaching merge/end)
+  function getBranchDepth(startId: string, mergePoint?: string, visited = new Set<string>()): number {
+    if (!startId || visited.has(startId)) return 0;
+    if (mergePoint && startId === mergePoint) return 0;
+    
+    const node = nodeMap.get(startId);
+    if (!node) return 0;
+    
+    visited.add(startId);
+    
+    const outs = outgoing.get(startId) || [];
+    const normalOuts = outs.filter(e => e.type !== "fault" && e.type !== "fault-end");
+    
+    if (normalOuts.length === 0) return 1;
+    
+    // For branching nodes, get max depth of all branches
+    if (node.type === "DECISION" || node.type === "WAIT" || node.type === "LOOP") {
+      let maxDepth = 0;
+      normalOuts.forEach(e => {
+        const depth = getBranchDepth(e.target, mergePoint, new Set(visited));
+        maxDepth = Math.max(maxDepth, depth);
+      });
+      return 1 + maxDepth;
+    }
+    
+    // For linear nodes, follow the path
+    return 1 + getBranchDepth(normalOuts[0].target, mergePoint, visited);
   }
 
-  const queue: QueueItem[] = [{ id: "START_NODE", row: 0, col: 0 }];
-  const rowUsage = new Map<number, Set<number>>(); // track columns used per row
-
-  // Track loop bodies to position them specially
-  const loopBodies = new Map<string, string[]>(); // loopId -> body node ids
-
-  // First pass: identify loop bodies
-  nodes.forEach((n) => {
-    if (n.type === "LOOP") {
-      const outs = outgoing.get(n.id) || [];
-      const nextEdge = outs.find((e) => e.type === "loop-next");
-      if (nextEdge) {
-        // Find all nodes in loop body until we get back to loop or hit the "after last" path
-        const bodyNodes: string[] = [];
-        let current = nextEdge.target;
-        const bodyVisited = new Set<string>();
-
-        while (current && !bodyVisited.has(current)) {
-          bodyVisited.add(current);
-          const curNode = nodeMap.get(current);
-          if (!curNode) break;
-
-          // Check if this node connects back to the loop
-          const curOuts = outgoing.get(current) || [];
-          const connectsToLoop = curOuts.some((e) => e.target === n.id);
-
-          bodyNodes.push(current);
-
-          if (connectsToLoop) break;
-
-          // Follow normal path
-          const normalOut = curOuts.find(
-            (e) => e.type === "normal" || e.type === "loop-next"
-          );
-          current = normalOut?.target || "";
-        }
-
-        loopBodies.set(n.id, bodyNodes);
+  // Find merge point for branches of a decision node
+  function findMergePoint(branchTargets: string[]): string | undefined {
+    if (branchTargets.length < 2) return undefined;
+    
+    // Get all reachable nodes from each branch
+    const reachableSets: Map<string, number>[] = branchTargets.map(() => new Map());
+    
+    branchTargets.forEach((target, idx) => {
+      const visited = new Set<string>();
+      const queue: { id: string; depth: number }[] = [{ id: target, depth: 0 }];
+      
+      while (queue.length > 0) {
+        const { id, depth } = queue.shift()!;
+        if (visited.has(id)) continue;
+        visited.add(id);
+        reachableSets[idx].set(id, depth);
+        
+        const outs = outgoing.get(id) || [];
+        outs.forEach((e) => {
+          if (e.type !== "fault" && e.type !== "fault-end") {
+            queue.push({ id: e.target, depth: depth + 1 });
+          }
+        });
       }
-    }
-  });
-
-  while (queue.length > 0) {
-    const { id, row, col } = queue.shift()!;
-
-    if (visited.has(id)) continue;
-
-    const node = nodeMap.get(id);
-    if (!node) continue;
-
-    visited.add(id);
-
-    // Check if row/col is used
-    if (!rowUsage.has(row)) rowUsage.set(row, new Set());
-    let finalCol = col;
-    while (rowUsage.get(row)!.has(finalCol)) {
-      finalCol += 1;
-    }
-    rowUsage.get(row)!.add(finalCol);
-
-    positions.set(id, {
-      x: startX + finalCol * H_GAP,
-      y: startY + row * (NODE_HEIGHT + V_GAP),
     });
-
-    const outs = outgoing.get(id) || [];
-
-    if (node.type === "LOOP") {
-      // Handle loop specially
-      const afterEdge = outs.find((e) => e.type === "loop-end");
-      const bodyNodes = loopBodies.get(id) || [];
-
-      // Position loop body to the left
-      let bodyRow = row + 1;
-      bodyNodes.forEach((bodyId) => {
-        if (!visited.has(bodyId)) {
-          queue.unshift({ id: bodyId, row: bodyRow, col: finalCol - 1 });
-          bodyRow++;
+    
+    // Find first common node with minimum total depth
+    let bestMerge: string | undefined;
+    let bestMinDepth = Infinity;
+    
+    const firstSet = reachableSets[0];
+    for (const [nodeId, depth0] of firstSet) {
+      const depths = [depth0];
+      let isCommon = true;
+      
+      for (let i = 1; i < reachableSets.length; i++) {
+        const depthI = reachableSets[i].get(nodeId);
+        if (depthI === undefined) {
+          isCommon = false;
+          break;
         }
-      });
-
-      // After Last goes down from loop
-      if (afterEdge && !visited.has(afterEdge.target)) {
-        const afterRow = row + Math.max(bodyNodes.length + 1, 2);
-        queue.push({ id: afterEdge.target, row: afterRow, col: finalCol });
+        depths.push(depthI);
       }
-    } else if (node.type === "DECISION") {
-      // Handle decision branches
-      const sortedOuts = [...outs].sort((a, b) => {
-        if (a.label === "Default" || a.type === "fault") return 1;
-        if (b.label === "Default" || b.type === "fault") return -1;
+      
+      if (isCommon) {
+        const minDepth = Math.min(...depths);
+        if (minDepth < bestMinDepth) {
+          bestMinDepth = minDepth;
+          bestMerge = nodeId;
+        }
+      }
+    }
+    
+    return bestMerge;
+  }
+
+  // Position nodes
+  const positions = new Map<string, { x: number; y: number; col: number; row: number }>();
+  const columnOccupancy = new Map<number, Map<number, string>>(); // row -> col -> nodeId
+  
+  function isPositionFree(col: number, row: number): boolean {
+    const rowOccupancy = columnOccupancy.get(row);
+    return !rowOccupancy || !rowOccupancy.has(col);
+  }
+  
+  function occupyPosition(col: number, row: number, nodeId: string): void {
+    if (!columnOccupancy.has(row)) columnOccupancy.set(row, new Map());
+    columnOccupancy.get(row)!.set(col, nodeId);
+  }
+  
+  function findFreeColumn(preferredCol: number, row: number): number {
+    if (isPositionFree(preferredCol, row)) return preferredCol;
+    
+    // Search outward from preferred column
+    for (let offset = 1; offset < 50; offset++) {
+      if (isPositionFree(preferredCol + offset, row)) return preferredCol + offset;
+      if (isPositionFree(preferredCol - offset, row)) return preferredCol - offset;
+    }
+    return preferredCol;
+  }
+
+  // Layout the flow starting from START_NODE
+  const visited = new Set<string>();
+  const startCol = 0;
+  const startRow = 0;
+  
+  interface LayoutTask {
+    nodeId: string;
+    col: number;
+    row: number;
+    stopAtMerge?: string;
+  }
+  
+  const queue: LayoutTask[] = [{ nodeId: "START_NODE", col: startCol, row: startRow }];
+  
+  while (queue.length > 0) {
+    const task = queue.shift()!;
+    const { nodeId, stopAtMerge } = task;
+    let { col, row } = task;
+    
+    if (visited.has(nodeId)) continue;
+    if (stopAtMerge && nodeId === stopAtMerge) continue;
+    
+    const node = nodeMap.get(nodeId);
+    if (!node) continue;
+    
+    visited.add(nodeId);
+    
+    // Find free position
+    col = findFreeColumn(col, row);
+    occupyPosition(col, row, nodeId);
+    positions.set(nodeId, { x: 0, y: 0, col, row });
+    
+    const outs = outgoing.get(nodeId) || [];
+    const normalOuts = outs.filter(e => e.type !== "fault" && e.type !== "fault-end");
+    const faultOuts = outs.filter(e => e.type === "fault" || e.type === "fault-end");
+    
+    // Handle fault paths - they go to the right
+    faultOuts.forEach((edge) => {
+      if (!visited.has(edge.target)) {
+        queue.push({ nodeId: edge.target, col: col + 3, row: row });
+      }
+    });
+    
+    if (node.type === "DECISION" || node.type === "WAIT") {
+      // Branching node - spread branches horizontally
+      const branchTargets = normalOuts.map(e => e.target);
+      const mergePoint = findMergePoint(branchTargets);
+      
+      // Sort branches: named first, default last
+      const sortedOuts = [...normalOuts].sort((a, b) => {
+        if (a.label?.includes("Default")) return 1;
+        if (b.label?.includes("Default")) return -1;
         return 0;
       });
-
-      let branchIndex = 0;
-
-      sortedOuts.forEach((edge) => {
-        if (visited.has(edge.target)) return;
-
-        if (edge.type === "fault") {
-          queue.push({ id: edge.target, row: row, col: finalCol + 2 });
-        } else {
-          // Spread branches: first goes left, rest go right
-          const offset = branchIndex === 0 ? -1 : branchIndex;
-          queue.push({ id: edge.target, row: row + 1, col: finalCol + offset });
-          branchIndex++;
+      
+      const numBranches = sortedOuts.length;
+      const branchStartCol = col - Math.floor((numBranches - 1) / 2);
+      
+      sortedOuts.forEach((edge, idx) => {
+        if (!visited.has(edge.target)) {
+          const branchCol = branchStartCol + idx;
+          queue.push({
+            nodeId: edge.target,
+            col: branchCol,
+            row: row + 1,
+            stopAtMerge: mergePoint
+          });
         }
       });
+      
+      // Schedule merge point to be processed after branches
+      if (mergePoint && !visited.has(mergePoint)) {
+        // Calculate row for merge point based on max branch depth
+        let maxBranchDepth = 0;
+        sortedOuts.forEach(e => {
+          const depth = getBranchDepth(e.target, mergePoint);
+          maxBranchDepth = Math.max(maxBranchDepth, depth);
+        });
+        
+        queue.push({
+          nodeId: mergePoint,
+          col: col,
+          row: row + 1 + maxBranchDepth
+        });
+      }
+    } else if (node.type === "LOOP") {
+      // Loop: "For Each" branch, then "After Last" continues
+      const forEachEdge = outs.find(e => e.type === "loop-next");
+      const afterLastEdge = outs.find(e => e.type === "loop-end");
+      
+      if (forEachEdge && !visited.has(forEachEdge.target)) {
+        queue.push({
+          nodeId: forEachEdge.target,
+          col: col - 1,
+          row: row + 1
+        });
+      }
+      
+      if (afterLastEdge && !visited.has(afterLastEdge.target)) {
+        // Calculate depth of loop body
+        const loopBodyDepth = forEachEdge 
+          ? getBranchDepth(forEachEdge.target, nodeId) 
+          : 0;
+        
+        queue.push({
+          nodeId: afterLastEdge.target,
+          col: col,
+          row: row + 1 + Math.max(loopBodyDepth, 1)
+        });
+      }
     } else {
-      // Normal node - follow edges
-      outs.forEach((edge) => {
-        if (visited.has(edge.target)) return;
-
-        if (edge.type === "fault") {
-          queue.push({ id: edge.target, row: row, col: finalCol + 2 });
-        } else if (edge.type === "fault-end") {
-          // END node on a fault path - position to the right of the parent node
-          queue.push({ id: edge.target, row: row, col: finalCol + 1 });
-        } else {
-          queue.push({ id: edge.target, row: row + 1, col: finalCol });
+      // Linear node - continue down
+      normalOuts.forEach(edge => {
+        if (!visited.has(edge.target)) {
+          queue.push({
+            nodeId: edge.target,
+            col: col,
+            row: row + 1
+          });
         }
       });
     }
   }
-
-  // Handle any unvisited nodes
-  let extraRow =
-    Math.max(
-      ...Array.from(positions.values()).map((p) => p.y / (NODE_HEIGHT + V_GAP))
-    ) + 2;
-  nodes.forEach((n) => {
+  
+  // Handle unvisited nodes (shouldn't happen normally)
+  let maxRow = 0;
+  positions.forEach(p => maxRow = Math.max(maxRow, p.row));
+  
+  nodes.forEach(n => {
     if (!positions.has(n.id)) {
-      positions.set(n.id, {
-        x: startX + 500,
-        y: startY + extraRow * (NODE_HEIGHT + V_GAP),
-      });
-      extraRow++;
+      maxRow++;
+      positions.set(n.id, { x: 0, y: 0, col: 5, row: maxRow });
     }
   });
-
-  // Adjust fault-path END nodes to align vertically with their source node
-  edges.forEach((e) => {
+  
+  // Convert grid positions to pixel coordinates
+  const GRID_X_SPACING = H_GAP;
+  const GRID_Y_SPACING = NODE_HEIGHT + V_GAP;
+  const CENTER_X = 600;
+  const START_Y = 80;
+  
+  positions.forEach((pos) => {
+    pos.x = CENTER_X + pos.col * GRID_X_SPACING;
+    pos.y = START_Y + pos.row * GRID_Y_SPACING;
+  });
+  
+  // Adjust fault-end nodes to be horizontally aligned with source
+  edges.forEach(e => {
     if (e.type === "fault-end") {
-      const srcNode = nodeMap.get(e.source);
+      const srcPos = positions.get(e.source);
       const tgtPos = positions.get(e.target);
-      if (srcNode && tgtPos) {
-        const srcPos = positions.get(e.source);
-        if (srcPos) {
-          // Vertically center the END node with the source node
-          // END circle is 40px tall, source node has height NODE_HEIGHT
-          // We want: srcPos.y + NODE_HEIGHT/2 = tgtPos.y + 20 (center of END circle)
-          tgtPos.y = srcPos.y + NODE_HEIGHT / 2 - 20;
-        }
+      if (srcPos && tgtPos) {
+        tgtPos.y = srcPos.y;
       }
     }
   });
-
-  return nodes.map((n) => {
+  
+  return nodes.map(n => {
     const pos = positions.get(n.id) || { x: 0, y: 0 };
     return { ...n, x: pos.x - n.width / 2, y: pos.y };
   });
@@ -757,49 +857,99 @@ const App: React.FC = () => {
       const tgt = parsedData.nodes.find((n) => n.id === edge.target);
       if (!src || !tgt) return null;
 
-      const x1 = src.x + src.width / 2;
-      const y1 = src.y + src.height;
-      const x2 = tgt.x + tgt.width / 2;
-      const y2 = tgt.y;
+      const srcCenterX = src.x + src.width / 2;
+      const srcBottomY = src.y + src.height;
+      const srcRightX = src.x + src.width;
+      const srcCenterY = src.y + src.height / 2;
+
+      const tgtCenterX = tgt.x + tgt.width / 2;
+      const tgtTopY = tgt.y;
+      const tgtLeftX = tgt.x;
+      const tgtCenterY = tgt.y + tgt.height / 2;
 
       const isFault = edge.type === "fault";
       const isFaultEnd = edge.type === "fault-end";
+      const isLoopNext = edge.type === "loop-next";
+      const isLoopEnd = edge.type === "loop-end";
+
+      // Check if this is a loop-back connector (target is above source)
       const isLoopBack =
-        edge.source !== "START_NODE" &&
-        parsedData.nodes.find((n) => n.id === edge.target)?.type === "LOOP" &&
-        edge.type !== "loop-next" &&
-        edge.type !== "loop-end";
+        !isFault &&
+        !isFaultEnd &&
+        !isLoopNext &&
+        !isLoopEnd &&
+        tgtTopY < srcBottomY;
 
       let path: string;
+      const showAsRed = isFault || isFaultEnd;
 
       if (isFaultEnd) {
-        // Horizontal path to END node on fault path - straight line from right side of source to left side of END
-        const srcRightX = src.x + src.width;
-        const srcMidY = src.y + src.height / 2;
-        // Target left edge - the END circle (40px wide)
-        const tgtLeftX = tgt.x;
-        // Path goes straight horizontally
-        path = `M ${srcRightX} ${srcMidY} L ${tgtLeftX} ${srcMidY}`;
+        // Horizontal path for fault-end connectors
+        path = `M ${srcRightX} ${srcCenterY} L ${tgtLeftX} ${srcCenterY}`;
+      } else if (isFault) {
+        // Fault connectors go to the right
+        const midX = srcRightX + 30;
+        path = `M ${srcRightX} ${srcCenterY} L ${midX} ${srcCenterY} L ${midX} ${tgtCenterY} L ${tgtLeftX} ${tgtCenterY}`;
       } else if (isLoopBack) {
-        // Loop back: go left and up
-        const midX = Math.min(x1, x2) - 60;
-        path = `M ${x1} ${y1} L ${x1} ${y1 + 20} L ${midX} ${y1 + 20} L ${midX} ${y2 - 20} L ${x2} ${y2 - 20} L ${x2} ${y2}`;
-      } else if (Math.abs(x2 - x1) < 10) {
-        // Straight down
-        path = `M ${x1} ${y1} L ${x2} ${y2}`;
-      } else if (y2 < y1) {
-        // Going up (unusual) - route around
-        const midY = y1 + 30;
-        path = `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+        // Loop-back connector: go left and up
+        const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
+        const leftX = Math.min(srcCenterX, tgtCenterX) - offsetX;
+        path = `M ${srcCenterX} ${srcBottomY} 
+                L ${srcCenterX} ${srcBottomY + 20} 
+                Q ${srcCenterX} ${srcBottomY + 35}, ${srcCenterX - 15} ${srcBottomY + 35}
+                L ${leftX + 15} ${srcBottomY + 35}
+                Q ${leftX} ${srcBottomY + 35}, ${leftX} ${srcBottomY + 20}
+                L ${leftX} ${tgtTopY + 20}
+                Q ${leftX} ${tgtTopY - 15}, ${leftX + 15} ${tgtTopY - 15}
+                L ${tgtCenterX - 15} ${tgtTopY - 15}
+                Q ${tgtCenterX} ${tgtTopY - 15}, ${tgtCenterX} ${tgtTopY}`;
+      } else if (Math.abs(tgtCenterX - srcCenterX) < 5) {
+        // Straight vertical line
+        path = `M ${srcCenterX} ${srcBottomY} L ${tgtCenterX} ${tgtTopY}`;
       } else {
-        // Normal routing with rounded corners
-        const midY = y1 + (y2 - y1) * 0.3;
-        path = `M ${x1} ${y1} L ${x1} ${midY} Q ${x1} ${midY + 15}, ${x1 + (x2 > x1 ? 15 : -15)} ${midY + 15} L ${x2 + (x2 > x1 ? -15 : 15)} ${midY + 15} Q ${x2} ${midY + 15}, ${x2} ${midY + 30} L ${x2} ${y2}`;
+        // Orthogonal routing with rounded corners
+        const verticalMid = srcBottomY + (tgtTopY - srcBottomY) / 2;
+        const cornerRadius = 12;
+        const dx = tgtCenterX - srcCenterX;
+        const sign = dx > 0 ? 1 : -1;
+
+        if (Math.abs(tgtTopY - srcBottomY) < 40) {
+          // Very close vertically - simple horizontal routing
+          path = `M ${srcCenterX} ${srcBottomY} 
+                  L ${srcCenterX} ${srcBottomY + 15}
+                  Q ${srcCenterX} ${srcBottomY + 25}, ${srcCenterX + sign * 10} ${srcBottomY + 25}
+                  L ${tgtCenterX - sign * 10} ${srcBottomY + 25}
+                  Q ${tgtCenterX} ${srcBottomY + 25}, ${tgtCenterX} ${srcBottomY + 35}
+                  L ${tgtCenterX} ${tgtTopY}`;
+        } else {
+          // Standard orthogonal with rounded corners
+          path = `M ${srcCenterX} ${srcBottomY} 
+                  L ${srcCenterX} ${verticalMid - cornerRadius}
+                  Q ${srcCenterX} ${verticalMid}, ${srcCenterX + sign * cornerRadius} ${verticalMid}
+                  L ${tgtCenterX - sign * cornerRadius} ${verticalMid}
+                  Q ${tgtCenterX} ${verticalMid}, ${tgtCenterX} ${verticalMid + cornerRadius}
+                  L ${tgtCenterX} ${tgtTopY}`;
+        }
       }
 
-      const labelX = (x1 + x2) / 2;
-      const labelY = y1 + 25;
-      const showAsRed = isFault || isFaultEnd;
+      // Calculate label position
+      let labelX = (srcCenterX + tgtCenterX) / 2;
+      let labelY = srcBottomY + 20;
+
+      if (isFault) {
+        // Fault label should be on the horizontal segment going right from source
+        // The path goes: right from source, then down/up to target
+        const midX = srcRightX + 30;
+        labelX = srcRightX + (midX - srcRightX) / 2 + 20; // On the first horizontal segment
+        labelY = srcCenterY - 12;
+      } else if (isFaultEnd) {
+        // Fault-end label on the horizontal line
+        labelX = (srcRightX + tgtLeftX) / 2;
+        labelY = srcCenterY - 12;
+      } else if (isLoopBack) {
+        labelX = Math.min(srcCenterX, tgtCenterX) - 60;
+        labelY = (srcBottomY + tgtTopY) / 2;
+      }
 
       return (
         <g key={edge.id}>
@@ -813,14 +963,14 @@ const App: React.FC = () => {
           />
           {edge.label && (
             <foreignObject
-              x={labelX - 55}
-              y={labelY - 4}
-              width={110}
+              x={labelX - 60}
+              y={labelY - 8}
+              width={120}
               height={30}
               style={{ overflow: "visible" }}
             >
               <div
-                className={`text-[10px] px-2.5 py-1.5 rounded-full text-center truncate border shadow-sm
+                className={`text-[10px] px-2 py-1 rounded-full text-center truncate border shadow-sm max-w-[110px] mx-auto
                 ${showAsRed ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-slate-600 border-slate-200"}`}
               >
                 {edge.label}
