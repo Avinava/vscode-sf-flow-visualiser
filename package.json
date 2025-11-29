@@ -1,0 +1,106 @@
+{
+  "name": "sf-flow-visualizer",
+  "displayName": "SF Flow Visualizer",
+  "description": "Visualize Salesforce Flow XML files with an interactive diagram",
+  "version": "0.0.1",
+  "publisher": "avinava",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Avinava/vscode-sf-flow-visualiser"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "salesforce",
+    "flow",
+    "visualizer",
+    "sfdx",
+    "xml"
+  ],
+  "activationEvents": [
+    "onLanguage:xml",
+    "workspaceContains:**/*.flow-meta.xml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sf-flow-visualizer.show",
+        "title": "Visualize Flow",
+        "category": "SF Flow",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "sf-flow-visualizer.showFromExplorer",
+        "title": "Visualize Flow",
+        "category": "SF Flow"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceExtname == .xml && resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "command": "sf-flow-visualizer.show",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .xml && resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "command": "sf-flow-visualizer.showFromExplorer",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sf-flow-visualizer.show",
+          "when": "editorLangId == xml"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SF Flow Visualizer",
+      "properties": {
+        "sf-flow-visualizer.autoLayout": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically layout flow nodes when coordinates are missing"
+        },
+        "sf-flow-visualizer.theme": {
+          "type": "string",
+          "default": "light",
+          "enum": ["light", "dark", "auto"],
+          "description": "Theme for the flow visualizer"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:webview && npm run build:extension",
+    "build:extension": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "build:webview": "cd webview-ui && npm run build",
+    "watch": "npm run watch:extension",
+    "watch:extension": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "dev:webview": "cd webview-ui && npm run dev",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package --out release/",
+    "install:all": "npm install && cd webview-ui && npm install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.2",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$tsc"],
+      "label": "npm: build",
+      "detail": "Build the extension and webview"
+    },
+    {
+      "type": "npm",
+      "script": "watch",
+      "group": "build",
+      "problemMatcher": ["$tsc-watch"],
+      "isBackground": true,
+      "label": "npm: watch",
+      "detail": "Watch for extension changes"
+    },
+    {
+      "type": "npm",
+      "script": "dev:webview",
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true,
+      "label": "npm: dev:webview",
+      "detail": "Start webview dev server"
+    }
+  ]
+}
