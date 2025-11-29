@@ -79,6 +79,16 @@ export const EdgeMarkers: React.FC = () => (
       <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.fault} />
     </marker>
     <marker
+      id="arrow-blue"
+      markerWidth="8"
+      markerHeight="6"
+      refX="7"
+      refY="3"
+      orient="auto"
+    >
+      <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.goto} />
+    </marker>
+    <marker
       id="arrow-highlight"
       markerWidth="8"
       markerHeight="6"
@@ -258,28 +268,46 @@ function calculateBranchLines(
 
   const branchLines: BranchLineInfo[] = [];
 
-  // Find branching nodes (DECISION, WAIT, LOOP)
+  // Find branching nodes (DECISION, WAIT, LOOP, or START with multiple paths)
   nodes.forEach((srcNode) => {
-    if (
-      srcNode.type !== "DECISION" &&
-      srcNode.type !== "WAIT" &&
-      srcNode.type !== "LOOP"
-    ) {
-      return;
-    }
-
     const srcEdges = edgesBySource.get(srcNode.id) || [];
-    let branchEdges = srcEdges.filter(
+    const nonFaultEdges = srcEdges.filter(
       (e) =>
         e.type !== "fault" && e.type !== "fault-end" && e.type !== "loop-end"
     );
+
+    // Check if this is a branching node
+    const isBranchingNode =
+      srcNode.type === "DECISION" ||
+      srcNode.type === "WAIT" ||
+      srcNode.type === "LOOP" ||
+      (srcNode.type === "START" && nonFaultEdges.length > 1);
+
+    if (!isBranchingNode) {
+      return;
+    }
+
+    let branchEdges = nonFaultEdges;
 
     if (branchEdges.length < 2 && srcNode.type !== "LOOP") {
       return;
     }
 
-    // Sort branches: rules on left, default on right (Salesforce style)
+    // Sort branches: rules/immediate on left, default/async on right (Salesforce style)
     branchEdges = [...branchEdges].sort((a, b) => {
+      // For START nodes: "Run Immediately" on left, "Run Asynchronously" on right
+      const aIsAsync =
+        a.label?.toLowerCase().includes("asynchron") ||
+        a.label?.toLowerCase().includes("scheduled") ||
+        a.id?.includes("-sched");
+      const bIsAsync =
+        b.label?.toLowerCase().includes("asynchron") ||
+        b.label?.toLowerCase().includes("scheduled") ||
+        b.id?.includes("-sched");
+      if (aIsAsync && !bIsAsync) return 1;
+      if (!aIsAsync && bIsAsync) return -1;
+
+      // For DECISION/WAIT: rules on left, default on right
       const aIsDefault =
         a.label?.toLowerCase().includes("default") ||
         a.label === "Other" ||
@@ -613,10 +641,12 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
 
       const isFault = edge.type === "fault";
       const isFaultEnd = edge.type === "fault-end";
+      const isGoTo = edge.isGoTo === true || edge.type === "goto";
       const isLoopBack = !isFault && !isFaultEnd && tgtTopY < srcBottomY;
 
       let path: string;
       const showAsRed = isFault || isFaultEnd;
+      const showAsBlue = isGoTo && !showAsRed;
 
       if (isFaultEnd) {
         // Straight horizontal line for fault-end
@@ -656,17 +686,30 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         labelY = (srcBottomY + tgtTopY) / 2;
       }
 
+      // Determine stroke color and marker based on edge type
+      let strokeColor = CONNECTOR_COLORS.default;
+      let markerEnd = "url(#arrow)";
+      let strokeDasharray: string | undefined = undefined;
+
+      if (showAsRed) {
+        strokeColor = CONNECTOR_COLORS.fault;
+        markerEnd = "url(#arrow-red)";
+        strokeDasharray = "6,4";
+      } else if (showAsBlue) {
+        strokeColor = CONNECTOR_COLORS.goto;
+        markerEnd = "url(#arrow-blue)";
+        strokeDasharray = "6,4"; // GoTo connectors are dashed like fault but blue
+      }
+
       elements.push(
         <g key={edge.id}>
           <path
             d={path}
             fill="none"
-            stroke={
-              showAsRed ? CONNECTOR_COLORS.fault : CONNECTOR_COLORS.default
-            }
+            stroke={strokeColor}
             strokeWidth={CONNECTOR_WIDTHS.default}
-            strokeDasharray={showAsRed ? "6,4" : undefined}
-            markerEnd={showAsRed ? "url(#arrow-red)" : "url(#arrow)"}
+            strokeDasharray={strokeDasharray}
+            markerEnd={markerEnd}
           />
           {edge.label && (
             <EdgeLabel

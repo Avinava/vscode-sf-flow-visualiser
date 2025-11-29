@@ -249,8 +249,9 @@ function calculateBranchDepth(
 
   const nodeType = node.type;
 
-  // For branching nodes, include all their branches' depth
-  if (nodeType === "DECISION" || nodeType === "WAIT") {
+  // For branching nodes (including START with multiple paths), include all their branches' depth
+  const isBranchingStart = nodeType === "START" && outs.length > 1;
+  if (nodeType === "DECISION" || nodeType === "WAIT" || isBranchingStart) {
     const branchTargets = outs.map((e) => e.target);
     const merge = findMergePointForBranches(branchTargets, outgoing, nodeMap);
 
@@ -333,7 +334,9 @@ function calculateSubtreeWidth(
 
   const nodeType = node.type;
 
-  if (nodeType === "DECISION" || nodeType === "WAIT") {
+  // Handle branching nodes (including START with multiple paths)
+  const isBranchingStart = nodeType === "START" && outs.length > 1;
+  if (nodeType === "DECISION" || nodeType === "WAIT" || isBranchingStart) {
     const branchTargets = outs.map((e) => e.target);
     const merge = findMergePointForBranches(branchTargets, outgoing, nodeMap);
 
@@ -509,8 +512,9 @@ export function autoLayout(
 
     const nodeType = node.type;
 
-    // Handle branching nodes (Decision, Wait)
-    if (nodeType === "DECISION" || nodeType === "WAIT") {
+    // Handle branching nodes (Decision, Wait, or Start with multiple paths)
+    const isBranchingStart = nodeType === "START" && outs.length > 1;
+    if (nodeType === "DECISION" || nodeType === "WAIT" || isBranchingStart) {
       const branchTargets = outs.map((e) => e.target);
       const mergePoint = findMergePointForBranches(
         branchTargets,
@@ -518,8 +522,21 @@ export function autoLayout(
         nodeMap
       );
 
-      // Sort branches: rules/named on left, default on right (Salesforce style)
+      // Sort branches: rules/immediate on left, default/async on right (Salesforce style)
       const sortedOuts = [...outs].sort((a, b) => {
+        // For START nodes: "Run Immediately" on left, "Run Asynchronously" on right
+        const aIsAsync =
+          a.label?.toLowerCase().includes("asynchron") ||
+          a.label?.toLowerCase().includes("scheduled") ||
+          a.id?.includes("-sched");
+        const bIsAsync =
+          b.label?.toLowerCase().includes("asynchron") ||
+          b.label?.toLowerCase().includes("scheduled") ||
+          b.id?.includes("-sched");
+        if (aIsAsync && !bIsAsync) return 1;
+        if (!aIsAsync && bIsAsync) return -1;
+
+        // For DECISION/WAIT: rules on left, default on right
         const aIsDefault =
           a.label?.toLowerCase().includes("default") ||
           a.label === "Other" ||

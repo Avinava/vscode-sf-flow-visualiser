@@ -21,6 +21,15 @@ import {
   Clock,
   AlertTriangle,
   Circle,
+  Terminal, // Apex
+  Mail, // Email
+  Shuffle, // Transform
+  Filter, // Collection processor
+  FastForward, // Step
+  MessageCircle, // Chatter
+  CheckCircle, // Approval
+  Globe, // External service
+  MousePointer, // Quick action
 } from "lucide-react";
 import type { NodeConfigMap } from "../types";
 
@@ -68,6 +77,7 @@ export const CONNECTOR_COLORS = {
   default: "#94a3b8", // --alc-connector-stroke
   fault: "#ef4444", // --lwc-colorBorderError
   highlight: "#60a5fa", // --lwc-paletteBlue30
+  goto: "#3b82f6", // Blue for GoTo connectors
   cut: "#3b82f6", // --lwc-brandAccessible
   delete: "#ef4444", // --lwc-colorBorderError
 };
@@ -221,6 +231,73 @@ export const NODE_CONFIG: NodeConfigMap = {
     color: "#8b5cf6", // Purple
     icon: Circle,
     label: "Orchestrated Stage",
+    iconShape: "circle",
+  },
+  // Additional element types
+  APEX_CALL: {
+    color: "#8b5cf6", // Purple (code-related)
+    icon: Terminal,
+    label: "Apex Action",
+    iconShape: "circle",
+  },
+  EMAIL_ALERT: {
+    color: "#06b6d4", // Cyan
+    icon: Mail,
+    label: "Email Alert",
+    iconShape: "circle",
+  },
+  TRANSFORM: {
+    color: "#10b981", // Emerald
+    icon: Shuffle,
+    label: "Transform",
+    iconShape: "circle",
+  },
+  COLLECTION_PROCESSOR: {
+    color: "#f59e0b", // Amber
+    icon: Filter,
+    label: "Collection Processor",
+    iconShape: "circle",
+  },
+  STEP: {
+    color: "#8b5cf6", // Purple
+    icon: FastForward,
+    label: "Step",
+    iconShape: "circle",
+  },
+  SEND_EMAIL: {
+    color: "#06b6d4", // Cyan
+    icon: Mail,
+    label: "Send Email",
+    iconShape: "circle",
+  },
+  POST_TO_CHATTER: {
+    color: "#3b82f6", // Blue
+    icon: MessageCircle,
+    label: "Post to Chatter",
+    iconShape: "circle",
+  },
+  SUBMIT_FOR_APPROVAL: {
+    color: "#22c55e", // Green
+    icon: CheckCircle,
+    label: "Submit for Approval",
+    iconShape: "circle",
+  },
+  CREATE_APPROVAL_REQUEST: {
+    color: "#22c55e", // Green
+    icon: CheckCircle,
+    label: "Create Approval Request",
+    iconShape: "circle",
+  },
+  EXTERNAL_SERVICE: {
+    color: "#6366f1", // Indigo
+    icon: Globe,
+    label: "External Service",
+    iconShape: "circle",
+  },
+  QUICK_ACTION: {
+    color: "#f97316", // Orange
+    icon: MousePointer,
+    label: "Quick Action",
     iconShape: "circle",
   },
 };

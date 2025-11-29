@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -130,6 +130,17 @@ const App: React.FC = () => {
       console.error("Parse error:", err);
     }
   }, [xmlInput, autoLayoutEnabled]);
+
+  // Compute nodes that are targets of GoTo connectors
+  const goToTargets = useMemo(() => {
+    const targets = new Set<string>();
+    parsedData.edges.forEach((edge) => {
+      if (edge.isGoTo) {
+        targets.add(edge.target);
+      }
+    });
+    return targets;
+  }, [parsedData.edges]);
 
   // Canvas interactions - use document-level events for reliable dragging
   const onMouseDown = (e: React.MouseEvent) => {
@@ -500,9 +511,17 @@ const App: React.FC = () => {
                     setSelectedNode(node);
                   }}
                 >
-                  {/* Top connector dot */}
+                  {/* Top connector dot with GoTo indicator */}
                   {node.type !== "START" && (
                     <div className="flex justify-center -mb-1.5 relative z-10">
+                      {goToTargets.has(node.id) && (
+                        <div
+                          className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white bg-blue-500 shadow-sm"
+                          title="GoTo Target"
+                        >
+                          ↵
+                        </div>
+                      )}
                       <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow"></div>
                     </div>
                   )}

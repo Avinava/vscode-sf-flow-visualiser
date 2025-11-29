@@ -29,7 +29,19 @@ export type NodeType =
   | "ROOT" // Salesforce internal - parent of START
   | "BRANCH" // Salesforce internal - branching node
   | "GROUP" // Salesforce internal - grouping container
-  | "ORCHESTRATED_STAGE"; // Salesforce orchestration
+  | "ORCHESTRATED_STAGE" // Salesforce orchestration
+  // Additional element types from Salesforce
+  | "APEX_CALL" // Apex Action
+  | "EMAIL_ALERT" // Email Alert
+  | "TRANSFORM" // Transform element
+  | "COLLECTION_PROCESSOR" // Collection processors (sort, filter, etc.)
+  | "STEP" // Orchestrated step
+  | "SEND_EMAIL" // Simple email action
+  | "POST_TO_CHATTER" // Chatter post action
+  | "SUBMIT_FOR_APPROVAL" // Approval submission
+  | "CREATE_APPROVAL_REQUEST" // Approval request creation
+  | "EXTERNAL_SERVICE" // External service call
+  | "QUICK_ACTION"; // Quick action
 
 /**
  * Connector/Edge types following Salesforce patterns

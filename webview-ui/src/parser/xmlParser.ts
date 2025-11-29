@@ -36,6 +36,12 @@ const XML_TAG_TO_NODE_TYPE: Record<string, NodeType> = {
   subflows: "SUBFLOW",
   waits: "WAIT",
   customErrors: "CUSTOM_ERROR",
+  // Additional element types from Salesforce
+  apexPluginCalls: "APEX_CALL",
+  transforms: "TRANSFORM",
+  collectionProcessors: "COLLECTION_PROCESSOR",
+  steps: "STEP",
+  orchestratedStages: "ORCHESTRATED_STAGE",
 };
 
 // ============================================================================
@@ -50,10 +56,18 @@ function getText(el: Element, tag: string): string {
 }
 
 /**
- * Parse a connector element to extract target reference
+ * Parse a connector element to extract target reference and GoTo flag
  */
-function parseConnector(connectorEl: Element): string | null {
-  return getText(connectorEl, "targetReference") || null;
+interface ConnectorInfo {
+  target: string | null;
+  isGoTo: boolean;
+}
+
+function parseConnector(connectorEl: Element): ConnectorInfo {
+  const target = getText(connectorEl, "targetReference") || null;
+  const isGoToEl = connectorEl.getElementsByTagName("isGoTo")[0];
+  const isGoTo = isGoToEl?.textContent?.toLowerCase() === "true";
+  return { target, isGoTo };
 }
 
 // ============================================================================
@@ -97,35 +111,56 @@ function parseStartElement(startEl: Element): StartNodeResult {
     },
   };
 
+  // Parse scheduled paths first to determine if we need "Run Immediately" label
+  const scheduledPaths = startEl.getElementsByTagName("scheduledPaths");
+  const hasScheduledPaths = scheduledPaths.length > 0;
+
   // Parse main connector
   const connEl = startEl.getElementsByTagName("connector")[0];
   if (connEl) {
-    const target = parseConnector(connEl);
+    const { target, isGoTo } = parseConnector(connEl);
     if (target) {
       edges.push({
         id: `start-${target}`,
         source: "START_NODE",
         target,
-        type: "normal",
+        // Add "Run Immediately" label when there are scheduled paths (like SF does)
+        label: hasScheduledPaths ? "Run Immediately" : undefined,
+        type: isGoTo ? "goto" : "normal",
+        isGoTo,
       });
     }
   }
 
-  // Parse scheduled paths (for scheduled flows)
-  const scheduledPaths = startEl.getElementsByTagName("scheduledPaths");
+  // Parse scheduled paths (for record-triggered flows with async paths)
   for (let i = 0; i < scheduledPaths.length; i++) {
     const path = scheduledPaths[i];
-    const pathLabel = getText(path, "label") || getText(path, "name");
+    const pathType = getText(path, "pathType");
+    const pathName = getText(path, "name");
+
+    // Determine label based on pathType (following Salesforce's naming)
+    let pathLabel = getText(path, "label") || pathName;
+    if (!pathLabel) {
+      if (pathType === "AsyncAfterCommit") {
+        pathLabel = "Run Asynchronously";
+      } else if (pathType === "Scheduled") {
+        pathLabel = "Scheduled Path";
+      } else {
+        pathLabel = `Path ${i + 1}`;
+      }
+    }
+
     const pathConn = path.getElementsByTagName("connector")[0];
     if (pathConn) {
-      const target = parseConnector(pathConn);
+      const { target, isGoTo } = parseConnector(pathConn);
       if (target) {
         edges.push({
           id: `start-${target}-sched-${i}`,
           source: "START_NODE",
           target,
           label: pathLabel,
-          type: "normal",
+          type: isGoTo ? "goto" : "normal",
+          isGoTo,
         });
       }
     }
@@ -167,13 +202,14 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
   // Parse standard connector
   for (const child of Array.from(el.children)) {
     if (child.tagName === "connector") {
-      const target = parseConnector(child);
+      const { target, isGoTo } = parseConnector(child);
       if (target) {
         edges.push({
           id: `${name}-${target}`,
           source: name,
           target,
-          type: "normal",
+          type: isGoTo ? "goto" : "normal",
+          isGoTo,
         });
       }
     }
@@ -182,7 +218,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
   // Parse fault connector
   const faultConn = el.getElementsByTagName("faultConnector")[0];
   if (faultConn) {
-    const target = parseConnector(faultConn);
+    const { target, isGoTo } = parseConnector(faultConn);
     if (target) {
       edges.push({
         id: `${name}-${target}-fault`,
@@ -190,6 +226,8 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
         target,
         label: "Fault",
         type: "fault",
+        isGoTo,
+        isFault: true,
       });
     }
   }
@@ -202,14 +240,15 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
       const ruleLabel = getText(rule, "label") || getText(rule, "name");
       for (const rc of Array.from(rule.children)) {
         if (rc.tagName === "connector") {
-          const target = parseConnector(rc);
+          const { target, isGoTo } = parseConnector(rc);
           if (target) {
             edges.push({
               id: `${name}-${target}-rule-${j}`,
               source: name,
               target,
               label: ruleLabel,
-              type: "normal",
+              type: isGoTo ? "goto" : "normal",
+              isGoTo,
             });
           }
         }
@@ -219,7 +258,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
     // Parse default connector
     const defConn = el.getElementsByTagName("defaultConnector")[0];
     if (defConn) {
-      const target = parseConnector(defConn);
+      const { target, isGoTo } = parseConnector(defConn);
       const defLabel = getText(el, "defaultConnectorLabel") || "Default";
       if (target) {
         edges.push({
@@ -227,7 +266,8 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
           source: name,
           target,
           label: defLabel,
-          type: "normal",
+          type: isGoTo ? "goto" : "normal",
+          isGoTo,
         });
       }
     }
@@ -237,7 +277,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
   if (type === "LOOP") {
     const nextConn = el.getElementsByTagName("nextValueConnector")[0];
     if (nextConn) {
-      const target = parseConnector(nextConn);
+      const { target, isGoTo } = parseConnector(nextConn);
       if (target) {
         edges.push({
           id: `${name}-${target}-next`,
@@ -245,13 +285,14 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
           target,
           label: "For Each",
           type: "loop-next",
+          isGoTo,
         });
       }
     }
 
     const endConn = el.getElementsByTagName("noMoreValuesConnector")[0];
     if (endConn) {
-      const target = parseConnector(endConn);
+      const { target, isGoTo } = parseConnector(endConn);
       if (target) {
         edges.push({
           id: `${name}-${target}-end`,
@@ -259,6 +300,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
           target,
           label: "After Last",
           type: "loop-end",
+          isGoTo,
         });
       }
     }
@@ -272,14 +314,15 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
       const weLabel = getText(we, "label") || getText(we, "name");
       const weConn = we.getElementsByTagName("connector")[0];
       if (weConn) {
-        const target = parseConnector(weConn);
+        const { target, isGoTo } = parseConnector(weConn);
         if (target) {
           edges.push({
             id: `${name}-${target}-wait-${j}`,
             source: name,
             target,
             label: weLabel,
-            type: "normal",
+            type: isGoTo ? "goto" : "normal",
+            isGoTo,
           });
         }
       }
@@ -288,7 +331,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
     // Parse default connector for waits
     const defConn = el.getElementsByTagName("defaultConnector")[0];
     if (defConn) {
-      const target = parseConnector(defConn);
+      const { target, isGoTo } = parseConnector(defConn);
       const defLabel = getText(el, "defaultConnectorLabel") || "Default";
       if (target) {
         edges.push({
@@ -296,7 +339,8 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
           source: name,
           target,
           label: defLabel,
-          type: "normal",
+          type: isGoTo ? "goto" : "normal",
+          isGoTo,
         });
       }
     }
