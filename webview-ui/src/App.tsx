@@ -69,7 +69,7 @@ interface FlowEdge {
   source: string;
   target: string;
   label?: string;
-  type: "normal" | "fault" | "loop-next" | "loop-end";
+  type: "normal" | "fault" | "loop-next" | "loop-end" | "fault-end";
 }
 
 interface ParsedFlow {
@@ -414,28 +414,41 @@ function parseFlowXML(xmlText: string): ParsedFlow {
   // Find terminal nodes (nodes with no outgoing connections) and add END nodes
   const nodesWithOutgoing = new Set(edges.map((e) => e.source));
   let endNodeCount = 0;
-  
-  nodes.forEach((node) => {
-    if (!nodesWithOutgoing.has(node.id) && node.type !== "START") {
-      // This node has no outgoing edges - add an END node after it
-      const endNodeId = `END_NODE_${endNodeCount++}`;
-      nodes.push({
-        id: endNodeId,
-        type: "END",
-        label: "End",
-        x: 0,
-        y: 0,
-        width: NODE_WIDTH,
-        height: 40,
-        data: {},
-      });
-      edges.push({
-        id: `${node.id}-${endNodeId}`,
-        source: node.id,
-        target: endNodeId,
-        type: "normal",
-      });
+
+  // Track nodes reached via fault connectors
+  const faultReachedNodes = new Set<string>();
+  edges.forEach((e) => {
+    if (e.type === "fault") {
+      faultReachedNodes.add(e.target);
     }
+  });
+
+  // Store terminal nodes first (before modifying nodes array)
+  const terminalNodes = nodes.filter(
+    (node) => !nodesWithOutgoing.has(node.id) && node.type !== "START"
+  );
+
+  terminalNodes.forEach((node) => {
+    // This node has no outgoing edges - add an END node after it
+    const endNodeId = `END_NODE_${endNodeCount++}`;
+    const isFaultPath = faultReachedNodes.has(node.id);
+
+    nodes.push({
+      id: endNodeId,
+      type: "END",
+      label: "End",
+      x: 0,
+      y: 0,
+      width: NODE_WIDTH,
+      height: 40,
+      data: { isFaultPath }, // Mark if this END is on a fault path
+    });
+    edges.push({
+      id: `${node.id}-${endNodeId}`,
+      source: node.id,
+      target: endNodeId,
+      type: isFaultPath ? "fault-end" : "normal", // Special type for fault-path ends
+    });
   });
 
   return { nodes, edges, metadata };
@@ -595,6 +608,9 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
 
         if (edge.type === "fault") {
           queue.push({ id: edge.target, row: row, col: finalCol + 2 });
+        } else if (edge.type === "fault-end") {
+          // END node on a fault path - position to the right of the parent node
+          queue.push({ id: edge.target, row: row, col: finalCol + 1 });
         } else {
           queue.push({ id: edge.target, row: row + 1, col: finalCol });
         }
@@ -614,6 +630,23 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
         y: startY + extraRow * (NODE_HEIGHT + V_GAP),
       });
       extraRow++;
+    }
+  });
+
+  // Adjust fault-path END nodes to align vertically with their source node
+  edges.forEach((e) => {
+    if (e.type === "fault-end") {
+      const srcNode = nodeMap.get(e.source);
+      const tgtPos = positions.get(e.target);
+      if (srcNode && tgtPos) {
+        const srcPos = positions.get(e.source);
+        if (srcPos) {
+          // Vertically center the END node with the source node
+          // END circle is 40px tall, source node has height NODE_HEIGHT
+          // We want: srcPos.y + NODE_HEIGHT/2 = tgtPos.y + 20 (center of END circle)
+          tgtPos.y = srcPos.y + (NODE_HEIGHT / 2) - 20;
+        }
+      }
     }
   });
 
@@ -730,6 +763,7 @@ const App: React.FC = () => {
       const y2 = tgt.y;
 
       const isFault = edge.type === "fault";
+      const isFaultEnd = edge.type === "fault-end";
       const isLoopBack =
         edge.source !== "START_NODE" &&
         parsedData.nodes.find((n) => n.id === edge.target)?.type === "LOOP" &&
@@ -738,7 +772,15 @@ const App: React.FC = () => {
 
       let path: string;
 
-      if (isLoopBack) {
+      if (isFaultEnd) {
+        // Horizontal path to END node on fault path - straight line from right side of source to left side of END
+        const srcRightX = src.x + src.width;
+        const srcMidY = src.y + src.height / 2;
+        // Target left edge - the END circle (40px wide)
+        const tgtLeftX = tgt.x;
+        // Path goes straight horizontally
+        path = `M ${srcRightX} ${srcMidY} L ${tgtLeftX} ${srcMidY}`;
+      } else if (isLoopBack) {
         // Loop back: go left and up
         const midX = Math.min(x1, x2) - 60;
         path = `M ${x1} ${y1} L ${x1} ${y1 + 20} L ${midX} ${y1 + 20} L ${midX} ${y2 - 20} L ${x2} ${y2 - 20} L ${x2} ${y2}`;
@@ -757,16 +799,17 @@ const App: React.FC = () => {
 
       const labelX = (x1 + x2) / 2;
       const labelY = y1 + 25;
+      const showAsRed = isFault || isFaultEnd;
 
       return (
         <g key={edge.id}>
           <path
             d={path}
             fill="none"
-            stroke={isFault ? "#ef4444" : "#94a3b8"}
+            stroke={showAsRed ? "#ef4444" : "#94a3b8"}
             strokeWidth={2}
-            strokeDasharray={isFault ? "6,4" : undefined}
-            markerEnd={isFault ? "url(#arrow-red)" : "url(#arrow)"}
+            strokeDasharray={showAsRed ? "6,4" : undefined}
+            markerEnd={showAsRed ? "url(#arrow-red)" : "url(#arrow)"}
           />
           {edge.label && (
             <foreignObject
@@ -778,7 +821,7 @@ const App: React.FC = () => {
             >
               <div
                 className={`text-[10px] px-2.5 py-1.5 rounded-full text-center truncate border shadow-sm
-                ${isFault ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-slate-600 border-slate-200"}`}
+                ${showAsRed ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-slate-600 border-slate-200"}`}
               >
                 {edge.label}
               </div>
@@ -1063,6 +1106,40 @@ const App: React.FC = () => {
 
               // Special rendering for END nodes - simple red circle
               if (node.type === "END") {
+                const isFaultPath = node.data.isFaultPath === true;
+
+                // For fault-path END nodes, position horizontally
+                if (isFaultPath) {
+                  return (
+                    <div
+                      key={node.id}
+                      className="flow-node absolute flex flex-row items-center"
+                      style={{ left: node.x, top: node.y, width: node.width }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNode(node);
+                      }}
+                    >
+                      {/* End circle */}
+                      <div
+                        className={`
+                        w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
+                        shadow-md transition-all
+                        ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
+                      `}
+                      >
+                        <Circle size={16} className="text-white" fill="white" />
+                      </div>
+
+                      {/* Label */}
+                      <div className="text-xs font-medium text-slate-600 ml-2">
+                        End
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Normal END node (vertical connection from above)
                 return (
                   <div
                     key={node.id}
@@ -1075,18 +1152,22 @@ const App: React.FC = () => {
                   >
                     {/* Top connector dot */}
                     <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow mb-2"></div>
-                    
+
                     {/* End circle */}
-                    <div className={`
+                    <div
+                      className={`
                       w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
                       shadow-md transition-all
                       ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
-                    `}>
+                    `}
+                    >
                       <Circle size={16} className="text-white" fill="white" />
                     </div>
-                    
+
                     {/* Label */}
-                    <div className="text-xs font-medium text-slate-600 mt-1.5">End</div>
+                    <div className="text-xs font-medium text-slate-600 mt-1.5">
+                      End
+                    </div>
                   </div>
                 );
               }
