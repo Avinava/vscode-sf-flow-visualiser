@@ -156,7 +156,7 @@ function createOrthogonalPath(
   }
 
   const sign = dx > 0 ? 1 : -1;
-  
+
   // For branch drops: bend happens just above the target (bottom-bend strategy)
   // This keeps vertical lines straight from the branch line and bends near the target
   const bendY = tgtY - 35; // Bend 35px above target
@@ -708,7 +708,14 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         const faultEdges = faultEdgesBySource.get(edge.source) || [];
         const faultIndex = faultEdges.findIndex((e) => e.id === edge.id);
         // Fault path routing with stagger index
-        path = createFaultPath(srcRightX, srcCenterY, tgtLeftX, tgtCenterY, CORNER_RADIUS, faultIndex);
+        path = createFaultPath(
+          srcRightX,
+          srcCenterY,
+          tgtLeftX,
+          tgtCenterY,
+          CORNER_RADIUS,
+          faultIndex
+        );
       } else if (isLoopBack) {
         // Loop-back connector
         path = createLoopBackPath(srcCenterX, srcBottomY, tgtCenterX, tgtTopY);
