@@ -37,9 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
           const xmlContent = document.getText();
           FlowPanel.render(context.extensionUri, xmlContent, uri.fsPath);
         } catch (error) {
-          vscode.window.showErrorMessage(
-            `Failed to open flow file: ${error}`
-          );
+          vscode.window.showErrorMessage(`Failed to open flow file: ${error}`);
         }
       }
     }

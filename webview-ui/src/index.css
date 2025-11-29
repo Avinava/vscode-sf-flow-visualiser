@@ -45,7 +45,9 @@
 
 /* Flow node transitions */
 .flow-node {
-  transition: box-shadow 0.2s ease, transform 0.1s ease;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.1s ease;
 }
 
 .flow-node:hover {

@@ -1,10 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ZoomIn, ZoomOut, FileCode, Layout, Monitor, Database, GitBranch, 
-  Play, Repeat, CheckSquare, Info, Search, Zap, Clock, Code,
-  Home, ChevronLeft, ChevronRight, Edit3, AlertTriangle, 
-  ChevronLeftCircle, ChevronRightCircle, Circle
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  ZoomIn,
+  ZoomOut,
+  FileCode,
+  Layout,
+  Monitor,
+  Database,
+  GitBranch,
+  Play,
+  Repeat,
+  CheckSquare,
+  Info,
+  Search,
+  Zap,
+  Clock,
+  Code,
+  Home,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  AlertTriangle,
+  ChevronLeftCircle,
+  ChevronRightCircle,
+  Circle,
+} from "lucide-react";
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
@@ -12,15 +31,27 @@ declare function acquireVsCodeApi(): {
   setState(state: unknown): void;
 };
 
-const vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
+const vscode =
+  typeof acquireVsCodeApi !== "undefined" ? acquireVsCodeApi() : null;
 
 // ============================================================================
 // TYPES
 // ============================================================================
-type NodeType = 
-  | 'START' | 'SCREEN' | 'DECISION' | 'ASSIGNMENT' | 'LOOP' 
-  | 'RECORD_CREATE' | 'RECORD_UPDATE' | 'RECORD_LOOKUP' | 'RECORD_DELETE'
-  | 'ACTION' | 'SUBFLOW' | 'WAIT' | 'CUSTOM_ERROR' | 'END';
+type NodeType =
+  | "START"
+  | "SCREEN"
+  | "DECISION"
+  | "ASSIGNMENT"
+  | "LOOP"
+  | "RECORD_CREATE"
+  | "RECORD_UPDATE"
+  | "RECORD_LOOKUP"
+  | "RECORD_DELETE"
+  | "ACTION"
+  | "SUBFLOW"
+  | "WAIT"
+  | "CUSTOM_ERROR"
+  | "END";
 
 interface FlowNode {
   id: string;
@@ -38,7 +69,7 @@ interface FlowEdge {
   source: string;
   target: string;
   label?: string;
-  type: 'normal' | 'fault' | 'loop-next' | 'loop-end';
+  type: "normal" | "fault" | "loop-next" | "loop-end";
 }
 
 interface ParsedFlow {
@@ -55,21 +86,28 @@ const NODE_HEIGHT = 56;
 const V_GAP = 80;
 const H_GAP = 260;
 
-const NODE_CONFIG: Record<NodeType, { color: string; icon: React.ElementType; label: string }> = {
-  START:         { color: '#22c55e', icon: Play, label: 'Start' },
-  SCREEN:        { color: '#3b82f6', icon: Monitor, label: 'Screen' },
-  DECISION:      { color: '#f59e0b', icon: GitBranch, label: 'Decision' },
-  ASSIGNMENT:    { color: '#f97316', icon: CheckSquare, label: 'Assignment' },
-  LOOP:          { color: '#ec4899', icon: Repeat, label: 'Loop' },
-  RECORD_CREATE: { color: '#ef4444', icon: Database, label: 'Create Records' },
-  RECORD_UPDATE: { color: '#f59e0b', icon: Edit3, label: 'Update Records' },
-  RECORD_LOOKUP: { color: '#ef4444', icon: Search, label: 'Get Records' },
-  RECORD_DELETE: { color: '#dc2626', icon: Database, label: 'Delete Records' },
-  ACTION:        { color: '#06b6d4', icon: Zap, label: 'Action' },
-  SUBFLOW:       { color: '#8b5cf6', icon: Code, label: 'Subflow' },
-  WAIT:          { color: '#eab308', icon: Clock, label: 'Wait' },
-  CUSTOM_ERROR:  { color: '#dc2626', icon: AlertTriangle, label: 'Custom Error' },
-  END:           { color: '#ef4444', icon: Circle, label: 'End' },
+const NODE_CONFIG: Record<
+  NodeType,
+  { color: string; icon: React.ElementType; label: string }
+> = {
+  START: { color: "#22c55e", icon: Play, label: "Start" },
+  SCREEN: { color: "#3b82f6", icon: Monitor, label: "Screen" },
+  DECISION: { color: "#f59e0b", icon: GitBranch, label: "Decision" },
+  ASSIGNMENT: { color: "#f97316", icon: CheckSquare, label: "Assignment" },
+  LOOP: { color: "#ec4899", icon: Repeat, label: "Loop" },
+  RECORD_CREATE: { color: "#ef4444", icon: Database, label: "Create Records" },
+  RECORD_UPDATE: { color: "#f59e0b", icon: Edit3, label: "Update Records" },
+  RECORD_LOOKUP: { color: "#ef4444", icon: Search, label: "Get Records" },
+  RECORD_DELETE: { color: "#dc2626", icon: Database, label: "Delete Records" },
+  ACTION: { color: "#06b6d4", icon: Zap, label: "Action" },
+  SUBFLOW: { color: "#8b5cf6", icon: Code, label: "Subflow" },
+  WAIT: { color: "#eab308", icon: Clock, label: "Wait" },
+  CUSTOM_ERROR: {
+    color: "#dc2626",
+    icon: AlertTriangle,
+    label: "Custom Error",
+  },
+  END: { color: "#ef4444", icon: Circle, label: "End" },
 };
 
 // ============================================================================
@@ -131,167 +169,243 @@ const DEMO_XML = `<?xml version="1.0" encoding="UTF-8"?>
 function parseFlowXML(xmlText: string): ParsedFlow {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, "text/xml");
-  
+
   const nodes: FlowNode[] = [];
   const edges: FlowEdge[] = [];
-  const metadata: ParsedFlow['metadata'] = {};
+  const metadata: ParsedFlow["metadata"] = {};
 
-  const getText = (el: Element, tag: string) => el.getElementsByTagName(tag)[0]?.textContent || '';
-  
+  const getText = (el: Element, tag: string) =>
+    el.getElementsByTagName(tag)[0]?.textContent || "";
+
   // Metadata
-  const flowEl = doc.getElementsByTagName('Flow')[0];
+  const flowEl = doc.getElementsByTagName("Flow")[0];
   if (flowEl) {
     for (const child of Array.from(flowEl.children)) {
-      if (child.tagName === 'label') metadata.label = child.textContent || '';
-      if (child.tagName === 'apiVersion') metadata.apiVersion = child.textContent || '';
-      if (child.tagName === 'processType') metadata.processType = child.textContent || '';
+      if (child.tagName === "label") metadata.label = child.textContent || "";
+      if (child.tagName === "apiVersion")
+        metadata.apiVersion = child.textContent || "";
+      if (child.tagName === "processType")
+        metadata.processType = child.textContent || "";
     }
   }
 
   // Start node
-  const startEl = doc.getElementsByTagName('start')[0];
+  const startEl = doc.getElementsByTagName("start")[0];
   if (startEl) {
-    const triggerType = getText(startEl, 'triggerType');
-    const obj = getText(startEl, 'object');
-    const recTrigger = getText(startEl, 'recordTriggerType');
-    
-    let startLabel = 'Start';
-    if (triggerType === 'RecordAfterSave' || triggerType === 'RecordBeforeSave') {
-      startLabel = 'Record-Triggered Flow';
-    } else if (triggerType === 'Scheduled') {
-      startLabel = 'Scheduled Flow';
+    const triggerType = getText(startEl, "triggerType");
+    const obj = getText(startEl, "object");
+    const recTrigger = getText(startEl, "recordTriggerType");
+
+    let startLabel = "Start";
+    if (
+      triggerType === "RecordAfterSave" ||
+      triggerType === "RecordBeforeSave"
+    ) {
+      startLabel = "Record-Triggered Flow";
+    } else if (triggerType === "Scheduled") {
+      startLabel = "Scheduled Flow";
     }
 
     nodes.push({
-      id: 'START_NODE',
-      type: 'START',
+      id: "START_NODE",
+      type: "START",
       label: startLabel,
-      x: 0, y: 0,
+      x: 0,
+      y: 0,
       width: NODE_WIDTH,
       height: NODE_HEIGHT + 24,
-      data: { object: obj, triggerType, recordTriggerType: recTrigger }
+      data: { object: obj, triggerType, recordTriggerType: recTrigger },
     });
 
-    const conn = startEl.getElementsByTagName('connector')[0];
+    const conn = startEl.getElementsByTagName("connector")[0];
     if (conn) {
-      const target = getText(conn, 'targetReference');
-      if (target) edges.push({ id: `start-${target}`, source: 'START_NODE', target, type: 'normal' });
+      const target = getText(conn, "targetReference");
+      if (target)
+        edges.push({
+          id: `start-${target}`,
+          source: "START_NODE",
+          target,
+          type: "normal",
+        });
     }
 
     // Scheduled paths
-    const scheduledPaths = startEl.getElementsByTagName('scheduledPaths');
+    const scheduledPaths = startEl.getElementsByTagName("scheduledPaths");
     for (let i = 0; i < scheduledPaths.length; i++) {
       const path = scheduledPaths[i];
-      const pathLabel = getText(path, 'label') || getText(path, 'name');
-      const pathConn = path.getElementsByTagName('connector')[0];
+      const pathLabel = getText(path, "label") || getText(path, "name");
+      const pathConn = path.getElementsByTagName("connector")[0];
       if (pathConn) {
-        const target = getText(pathConn, 'targetReference');
-        if (target) edges.push({ id: `start-${target}-sched-${i}`, source: 'START_NODE', target, label: pathLabel, type: 'normal' });
+        const target = getText(pathConn, "targetReference");
+        if (target)
+          edges.push({
+            id: `start-${target}-sched-${i}`,
+            source: "START_NODE",
+            target,
+            label: pathLabel,
+            type: "normal",
+          });
       }
     }
   }
 
   // Element types to parse
   const elementTypes: { tag: string; type: NodeType }[] = [
-    { tag: 'screens', type: 'SCREEN' },
-    { tag: 'decisions', type: 'DECISION' },
-    { tag: 'assignments', type: 'ASSIGNMENT' },
-    { tag: 'loops', type: 'LOOP' },
-    { tag: 'recordCreates', type: 'RECORD_CREATE' },
-    { tag: 'recordUpdates', type: 'RECORD_UPDATE' },
-    { tag: 'recordLookups', type: 'RECORD_LOOKUP' },
-    { tag: 'recordDeletes', type: 'RECORD_DELETE' },
-    { tag: 'actionCalls', type: 'ACTION' },
-    { tag: 'subflows', type: 'SUBFLOW' },
-    { tag: 'waits', type: 'WAIT' },
-    { tag: 'customErrors', type: 'CUSTOM_ERROR' },
+    { tag: "screens", type: "SCREEN" },
+    { tag: "decisions", type: "DECISION" },
+    { tag: "assignments", type: "ASSIGNMENT" },
+    { tag: "loops", type: "LOOP" },
+    { tag: "recordCreates", type: "RECORD_CREATE" },
+    { tag: "recordUpdates", type: "RECORD_UPDATE" },
+    { tag: "recordLookups", type: "RECORD_LOOKUP" },
+    { tag: "recordDeletes", type: "RECORD_DELETE" },
+    { tag: "actionCalls", type: "ACTION" },
+    { tag: "subflows", type: "SUBFLOW" },
+    { tag: "waits", type: "WAIT" },
+    { tag: "customErrors", type: "CUSTOM_ERROR" },
   ];
 
   for (const { tag, type } of elementTypes) {
     const elements = doc.getElementsByTagName(tag);
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i];
-      const name = getText(el, 'name');
-      const label = getText(el, 'label') || name;
-      const obj = getText(el, 'object');
+      const name = getText(el, "name");
+      const label = getText(el, "label") || name;
+      const obj = getText(el, "object");
 
       nodes.push({
         id: name,
         type,
         label,
-        x: 0, y: 0,
+        x: 0,
+        y: 0,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
-        data: { xmlElement: el.outerHTML, object: obj }
+        data: { xmlElement: el.outerHTML, object: obj },
       });
 
       // Standard connector
       for (const child of Array.from(el.children)) {
-        if (child.tagName === 'connector') {
-          const target = getText(child, 'targetReference');
-          if (target) edges.push({ id: `${name}-${target}`, source: name, target, type: 'normal' });
+        if (child.tagName === "connector") {
+          const target = getText(child, "targetReference");
+          if (target)
+            edges.push({
+              id: `${name}-${target}`,
+              source: name,
+              target,
+              type: "normal",
+            });
         }
       }
 
       // Fault connector
-      const faultConn = el.getElementsByTagName('faultConnector')[0];
+      const faultConn = el.getElementsByTagName("faultConnector")[0];
       if (faultConn) {
-        const target = getText(faultConn, 'targetReference');
-        if (target) edges.push({ id: `${name}-${target}-fault`, source: name, target, label: 'Fault', type: 'fault' });
+        const target = getText(faultConn, "targetReference");
+        if (target)
+          edges.push({
+            id: `${name}-${target}-fault`,
+            source: name,
+            target,
+            label: "Fault",
+            type: "fault",
+          });
       }
 
       // Decision rules
-      if (type === 'DECISION') {
-        const rules = el.getElementsByTagName('rules');
+      if (type === "DECISION") {
+        const rules = el.getElementsByTagName("rules");
         for (let j = 0; j < rules.length; j++) {
           const rule = rules[j];
-          const ruleLabel = getText(rule, 'label') || getText(rule, 'name');
+          const ruleLabel = getText(rule, "label") || getText(rule, "name");
           for (const rc of Array.from(rule.children)) {
-            if (rc.tagName === 'connector') {
-              const target = getText(rc, 'targetReference');
-              if (target) edges.push({ id: `${name}-${target}-rule-${j}`, source: name, target, label: ruleLabel, type: 'normal' });
+            if (rc.tagName === "connector") {
+              const target = getText(rc, "targetReference");
+              if (target)
+                edges.push({
+                  id: `${name}-${target}-rule-${j}`,
+                  source: name,
+                  target,
+                  label: ruleLabel,
+                  type: "normal",
+                });
             }
           }
         }
-        const defConn = el.getElementsByTagName('defaultConnector')[0];
+        const defConn = el.getElementsByTagName("defaultConnector")[0];
         if (defConn) {
-          const target = getText(defConn, 'targetReference');
-          const defLabel = getText(el, 'defaultConnectorLabel') || 'Default';
-          if (target) edges.push({ id: `${name}-${target}-def`, source: name, target, label: defLabel, type: 'normal' });
+          const target = getText(defConn, "targetReference");
+          const defLabel = getText(el, "defaultConnectorLabel") || "Default";
+          if (target)
+            edges.push({
+              id: `${name}-${target}-def`,
+              source: name,
+              target,
+              label: defLabel,
+              type: "normal",
+            });
         }
       }
 
       // Loop connectors
-      if (type === 'LOOP') {
-        const nextConn = el.getElementsByTagName('nextValueConnector')[0];
+      if (type === "LOOP") {
+        const nextConn = el.getElementsByTagName("nextValueConnector")[0];
         if (nextConn) {
-          const target = getText(nextConn, 'targetReference');
-          if (target) edges.push({ id: `${name}-${target}-next`, source: name, target, label: 'For Each', type: 'loop-next' });
+          const target = getText(nextConn, "targetReference");
+          if (target)
+            edges.push({
+              id: `${name}-${target}-next`,
+              source: name,
+              target,
+              label: "For Each",
+              type: "loop-next",
+            });
         }
-        const endConn = el.getElementsByTagName('noMoreValuesConnector')[0];
+        const endConn = el.getElementsByTagName("noMoreValuesConnector")[0];
         if (endConn) {
-          const target = getText(endConn, 'targetReference');
-          if (target) edges.push({ id: `${name}-${target}-end`, source: name, target, label: 'After Last', type: 'loop-end' });
+          const target = getText(endConn, "targetReference");
+          if (target)
+            edges.push({
+              id: `${name}-${target}-end`,
+              source: name,
+              target,
+              label: "After Last",
+              type: "loop-end",
+            });
         }
       }
 
       // Wait events
-      if (type === 'WAIT') {
-        const waitEvents = el.getElementsByTagName('waitEvents');
+      if (type === "WAIT") {
+        const waitEvents = el.getElementsByTagName("waitEvents");
         for (let j = 0; j < waitEvents.length; j++) {
           const we = waitEvents[j];
-          const weLabel = getText(we, 'label') || getText(we, 'name');
-          const weConn = we.getElementsByTagName('connector')[0];
+          const weLabel = getText(we, "label") || getText(we, "name");
+          const weConn = we.getElementsByTagName("connector")[0];
           if (weConn) {
-            const target = getText(weConn, 'targetReference');
-            if (target) edges.push({ id: `${name}-${target}-wait-${j}`, source: name, target, label: weLabel, type: 'normal' });
+            const target = getText(weConn, "targetReference");
+            if (target)
+              edges.push({
+                id: `${name}-${target}-wait-${j}`,
+                source: name,
+                target,
+                label: weLabel,
+                type: "normal",
+              });
           }
         }
-        const defConn = el.getElementsByTagName('defaultConnector')[0];
+        const defConn = el.getElementsByTagName("defaultConnector")[0];
         if (defConn) {
-          const target = getText(defConn, 'targetReference');
-          const defLabel = getText(el, 'defaultConnectorLabel') || 'Default';
-          if (target) edges.push({ id: `${name}-${target}-def`, source: name, target, label: defLabel, type: 'normal' });
+          const target = getText(defConn, "targetReference");
+          const defLabel = getText(el, "defaultConnectorLabel") || "Default";
+          if (target)
+            edges.push({
+              id: `${name}-${target}-def`,
+              source: name,
+              target,
+              label: defLabel,
+              type: "normal",
+            });
         }
       }
     }
@@ -306,11 +420,11 @@ function parseFlowXML(xmlText: string): ParsedFlow {
 function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   if (nodes.length === 0) return nodes;
 
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const outgoing = new Map<string, FlowEdge[]>();
   const incoming = new Map<string, FlowEdge[]>();
-  
-  edges.forEach(e => {
+
+  edges.forEach((e) => {
     if (!outgoing.has(e.source)) outgoing.set(e.source, []);
     outgoing.get(e.source)!.push(e);
     if (!incoming.has(e.target)) incoming.set(e.target, []);
@@ -328,9 +442,9 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   });
 
   // BFS layout starting from START_NODE
-  const startX = 400;
+  const startX = 500;
   const startY = 60;
-  
+
   interface QueueItem {
     id: string;
     row: number;
@@ -339,41 +453,43 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
     branchOffset?: number;
   }
 
-  const queue: QueueItem[] = [{ id: 'START_NODE', row: 0, col: 0 }];
+  const queue: QueueItem[] = [{ id: "START_NODE", row: 0, col: 0 }];
   const rowUsage = new Map<number, Set<number>>(); // track columns used per row
-  
+
   // Track loop bodies to position them specially
   const loopBodies = new Map<string, string[]>(); // loopId -> body node ids
-  
+
   // First pass: identify loop bodies
-  nodes.forEach(n => {
-    if (n.type === 'LOOP') {
+  nodes.forEach((n) => {
+    if (n.type === "LOOP") {
       const outs = outgoing.get(n.id) || [];
-      const nextEdge = outs.find(e => e.type === 'loop-next');
+      const nextEdge = outs.find((e) => e.type === "loop-next");
       if (nextEdge) {
         // Find all nodes in loop body until we get back to loop or hit the "after last" path
         const bodyNodes: string[] = [];
         let current = nextEdge.target;
         const bodyVisited = new Set<string>();
-        
+
         while (current && !bodyVisited.has(current)) {
           bodyVisited.add(current);
           const curNode = nodeMap.get(current);
           if (!curNode) break;
-          
+
           // Check if this node connects back to the loop
           const curOuts = outgoing.get(current) || [];
-          const connectsToLoop = curOuts.some(e => e.target === n.id);
-          
+          const connectsToLoop = curOuts.some((e) => e.target === n.id);
+
           bodyNodes.push(current);
-          
+
           if (connectsToLoop) break;
-          
+
           // Follow normal path
-          const normalOut = curOuts.find(e => e.type === 'normal' || e.type === 'loop-next');
-          current = normalOut?.target || '';
+          const normalOut = curOuts.find(
+            (e) => e.type === "normal" || e.type === "loop-next"
+          );
+          current = normalOut?.target || "";
         }
-        
+
         loopBodies.set(n.id, bodyNodes);
       }
     }
@@ -381,12 +497,12 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
 
   while (queue.length > 0) {
     const { id, row, col } = queue.shift()!;
-    
+
     if (visited.has(id)) continue;
-    
+
     const node = nodeMap.get(id);
     if (!node) continue;
-    
+
     visited.add(id);
 
     // Check if row/col is used
@@ -399,44 +515,44 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
 
     positions.set(id, {
       x: startX + finalCol * H_GAP,
-      y: startY + row * (NODE_HEIGHT + V_GAP)
+      y: startY + row * (NODE_HEIGHT + V_GAP),
     });
 
     const outs = outgoing.get(id) || [];
-    
-    if (node.type === 'LOOP') {
+
+    if (node.type === "LOOP") {
       // Handle loop specially
-      const afterEdge = outs.find(e => e.type === 'loop-end');
+      const afterEdge = outs.find((e) => e.type === "loop-end");
       const bodyNodes = loopBodies.get(id) || [];
-      
+
       // Position loop body to the left
       let bodyRow = row + 1;
-      bodyNodes.forEach(bodyId => {
+      bodyNodes.forEach((bodyId) => {
         if (!visited.has(bodyId)) {
           queue.unshift({ id: bodyId, row: bodyRow, col: finalCol - 1 });
           bodyRow++;
         }
       });
-      
+
       // After Last goes down from loop
       if (afterEdge && !visited.has(afterEdge.target)) {
         const afterRow = row + Math.max(bodyNodes.length + 1, 2);
         queue.push({ id: afterEdge.target, row: afterRow, col: finalCol });
       }
-    } else if (node.type === 'DECISION') {
+    } else if (node.type === "DECISION") {
       // Handle decision branches
       const sortedOuts = [...outs].sort((a, b) => {
-        if (a.label === 'Default' || a.type === 'fault') return 1;
-        if (b.label === 'Default' || b.type === 'fault') return -1;
+        if (a.label === "Default" || a.type === "fault") return 1;
+        if (b.label === "Default" || b.type === "fault") return -1;
         return 0;
       });
-      
+
       let branchIndex = 0;
-      
-      sortedOuts.forEach(edge => {
+
+      sortedOuts.forEach((edge) => {
         if (visited.has(edge.target)) return;
-        
-        if (edge.type === 'fault') {
+
+        if (edge.type === "fault") {
           queue.push({ id: edge.target, row: row, col: finalCol + 2 });
         } else {
           // Spread branches: first goes left, rest go right
@@ -449,8 +565,8 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
       // Normal node - follow edges
       outs.forEach((edge) => {
         if (visited.has(edge.target)) return;
-        
-        if (edge.type === 'fault') {
+
+        if (edge.type === "fault") {
           queue.push({ id: edge.target, row: row, col: finalCol + 2 });
         } else {
           queue.push({ id: edge.target, row: row + 1, col: finalCol });
@@ -460,15 +576,21 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
   }
 
   // Handle any unvisited nodes
-  let extraRow = Math.max(...Array.from(positions.values()).map(p => p.y / (NODE_HEIGHT + V_GAP))) + 2;
-  nodes.forEach(n => {
+  let extraRow =
+    Math.max(
+      ...Array.from(positions.values()).map((p) => p.y / (NODE_HEIGHT + V_GAP))
+    ) + 2;
+  nodes.forEach((n) => {
     if (!positions.has(n.id)) {
-      positions.set(n.id, { x: startX + 500, y: startY + extraRow * (NODE_HEIGHT + V_GAP) });
+      positions.set(n.id, {
+        x: startX + 500,
+        y: startY + extraRow * (NODE_HEIGHT + V_GAP),
+      });
       extraRow++;
     }
   });
 
-  return nodes.map(n => {
+  return nodes.map((n) => {
     const pos = positions.get(n.id) || { x: 0, y: 0 };
     return { ...n, x: pos.x - n.width / 2, y: pos.y };
   });
@@ -479,13 +601,17 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
 // ============================================================================
 const App: React.FC = () => {
   const [xmlInput, setXmlInput] = useState(DEMO_XML);
-  const [parsedData, setParsedData] = useState<ParsedFlow>({ nodes: [], edges: [], metadata: {} });
+  const [parsedData, setParsedData] = useState<ParsedFlow>({
+    nodes: [],
+    edges: [],
+    metadata: {},
+  });
   const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<FlowNode | null>(null);
   const [autoLayoutEnabled, setAutoLayoutEnabled] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [flowFileName, setFlowFileName] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [flowFileName, setFlowFileName] = useState("");
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
@@ -494,7 +620,7 @@ const App: React.FC = () => {
   // VS Code message handler
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data.command === 'loadXml') {
+      if (e.data.command === "loadXml") {
         setXmlInput(e.data.payload);
         if (e.data.fileName) setFlowFileName(e.data.fileName);
         setSelectedNode(null);
@@ -502,9 +628,9 @@ const App: React.FC = () => {
         setScale(0.9);
       }
     };
-    window.addEventListener('message', handler);
-    if (vscode) vscode.postMessage({ command: 'ready' });
-    return () => window.removeEventListener('message', handler);
+    window.addEventListener("message", handler);
+    if (vscode) vscode.postMessage({ command: "ready" });
+    return () => window.removeEventListener("message", handler);
   }, []);
 
   // Parse XML when input changes
@@ -523,34 +649,36 @@ const App: React.FC = () => {
 
   // Canvas interactions
   const onMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.flow-node')) return;
+    if ((e.target as HTMLElement).closest(".flow-node")) return;
     isDragging.current = true;
     lastPos.current = { x: e.clientX, y: e.clientY };
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current) return;
-    setPan(p => ({
+    setPan((p) => ({
       x: p.x + e.clientX - lastPos.current.x,
-      y: p.y + e.clientY - lastPos.current.y
+      y: p.y + e.clientY - lastPos.current.y,
     }));
     lastPos.current = { x: e.clientX, y: e.clientY };
   };
 
-  const onMouseUp = () => { isDragging.current = false; };
+  const onMouseUp = () => {
+    isDragging.current = false;
+  };
 
   const onWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
-      setScale(s => Math.min(Math.max(0.2, s - e.deltaY * 0.001), 2));
+      setScale((s) => Math.min(Math.max(0.2, s - e.deltaY * 0.001), 2));
     }
   };
 
   // Render edges
   const renderEdges = () => {
-    return parsedData.edges.map(edge => {
-      const src = parsedData.nodes.find(n => n.id === edge.source);
-      const tgt = parsedData.nodes.find(n => n.id === edge.target);
+    return parsedData.edges.map((edge) => {
+      const src = parsedData.nodes.find((n) => n.id === edge.source);
+      const tgt = parsedData.nodes.find((n) => n.id === edge.target);
       if (!src || !tgt) return null;
 
       const x1 = src.x + src.width / 2;
@@ -558,13 +686,15 @@ const App: React.FC = () => {
       const x2 = tgt.x + tgt.width / 2;
       const y2 = tgt.y;
 
-      const isFault = edge.type === 'fault';
-      const isLoopBack = edge.source !== 'START_NODE' && 
-        parsedData.nodes.find(n => n.id === edge.target)?.type === 'LOOP' &&
-        edge.type !== 'loop-next' && edge.type !== 'loop-end';
+      const isFault = edge.type === "fault";
+      const isLoopBack =
+        edge.source !== "START_NODE" &&
+        parsedData.nodes.find((n) => n.id === edge.target)?.type === "LOOP" &&
+        edge.type !== "loop-next" &&
+        edge.type !== "loop-end";
 
       let path: string;
-      
+
       if (isLoopBack) {
         // Loop back: go left and up
         const midX = Math.min(x1, x2) - 60;
@@ -590,15 +720,23 @@ const App: React.FC = () => {
           <path
             d={path}
             fill="none"
-            stroke={isFault ? '#ef4444' : '#94a3b8'}
+            stroke={isFault ? "#ef4444" : "#94a3b8"}
             strokeWidth={2}
-            strokeDasharray={isFault ? '6,4' : undefined}
-            markerEnd={isFault ? 'url(#arrow-red)' : 'url(#arrow)'}
+            strokeDasharray={isFault ? "6,4" : undefined}
+            markerEnd={isFault ? "url(#arrow-red)" : "url(#arrow)"}
           />
           {edge.label && (
-            <foreignObject x={labelX - 50} y={labelY} width={100} height={24}>
-              <div className={`text-[10px] px-2 py-1 rounded-full text-center truncate border shadow-sm
-                ${isFault ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+            <foreignObject
+              x={labelX - 55}
+              y={labelY - 4}
+              width={110}
+              height={30}
+              style={{ overflow: "visible" }}
+            >
+              <div
+                className={`text-[10px] px-2.5 py-1.5 rounded-full text-center truncate border shadow-sm
+                ${isFault ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-slate-600 border-slate-200"}`}
+              >
                 {edge.label}
               </div>
             </foreignObject>
@@ -608,12 +746,15 @@ const App: React.FC = () => {
     });
   };
 
-  const title = parsedData.metadata.label || flowFileName?.replace('.flow-meta.xml', '') || 'Flow Visualizer';
+  const title =
+    parsedData.metadata.label ||
+    flowFileName?.replace(".flow-meta.xml", "") ||
+    "Flow Visualizer";
 
   return (
     <div className="flex h-screen w-full bg-slate-100 overflow-hidden font-sans text-sm">
       {/* SIDEBAR */}
-      <div 
+      <div
         className={`bg-white border-r border-slate-200 flex flex-col shadow-lg transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0`}
         style={{ width: sidebarOpen ? 320 : 0 }}
       >
@@ -623,9 +764,13 @@ const App: React.FC = () => {
             <FileCode className="text-white w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-white truncate text-sm">{title}</div>
+            <div className="font-semibold text-white truncate text-sm">
+              {title}
+            </div>
             {parsedData.metadata.apiVersion && (
-              <div className="text-[10px] text-blue-200">API v{parsedData.metadata.apiVersion}</div>
+              <div className="text-[10px] text-blue-200">
+                API v{parsedData.metadata.apiVersion}
+              </div>
             )}
           </div>
         </div>
@@ -634,12 +779,16 @@ const App: React.FC = () => {
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex gap-4 text-xs flex-shrink-0">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-500"></span>
-            <span className="font-medium text-slate-700">{parsedData.nodes.length}</span>
+            <span className="font-medium text-slate-700">
+              {parsedData.nodes.length}
+            </span>
             <span className="text-slate-500">nodes</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            <span className="font-medium text-slate-700">{parsedData.edges.length}</span>
+            <span className="font-medium text-slate-700">
+              {parsedData.edges.length}
+            </span>
             <span className="text-slate-500">connections</span>
           </span>
         </div>
@@ -649,70 +798,106 @@ const App: React.FC = () => {
           {selectedNode ? (
             <div className="p-4">
               <div className="flex items-start gap-3 mb-4">
-                <div 
+                <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: NODE_CONFIG[selectedNode.type]?.color || '#64748b' }}
+                  style={{
+                    backgroundColor:
+                      NODE_CONFIG[selectedNode.type]?.color || "#64748b",
+                  }}
                 >
-                  {React.createElement(NODE_CONFIG[selectedNode.type]?.icon || Circle, { size: 20, className: 'text-white' })}
+                  {React.createElement(
+                    NODE_CONFIG[selectedNode.type]?.icon || Circle,
+                    { size: 20, className: "text-white" }
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-800 leading-tight">{selectedNode.label}</div>
-                  <div className="text-xs text-slate-500">{NODE_CONFIG[selectedNode.type]?.label || selectedNode.type}</div>
+                  <div className="font-semibold text-slate-800 leading-tight">
+                    {selectedNode.label}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {NODE_CONFIG[selectedNode.type]?.label || selectedNode.type}
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">API Name</div>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                    API Name
+                  </div>
                   <div className="font-mono text-xs bg-slate-100 px-2 py-1.5 rounded border border-slate-200 break-all">
                     {selectedNode.id}
                   </div>
                 </div>
 
-                {typeof selectedNode.data.object === 'string' && selectedNode.data.object && (
-                  <div>
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Object</div>
-                    <div className="text-xs bg-slate-100 px-2 py-1.5 rounded border border-slate-200">
-                      {selectedNode.data.object}
+                {typeof selectedNode.data.object === "string" &&
+                  selectedNode.data.object && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                        Object
+                      </div>
+                      <div className="text-xs bg-slate-100 px-2 py-1.5 rounded border border-slate-200">
+                        {selectedNode.data.object}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 <div>
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Connections</div>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                    Connections
+                  </div>
                   <div className="space-y-1">
-                    {parsedData.edges.filter(e => e.source === selectedNode.id).map(e => (
-                      <div key={e.id} className={`text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border
-                        ${e.type === 'fault' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                        <ChevronRight size={12} />
-                        <span className="truncate flex-1">{e.target}</span>
-                        {e.label && <span className="text-[10px] text-slate-400">({e.label})</span>}
-                      </div>
-                    ))}
-                    {parsedData.edges.filter(e => e.target === selectedNode.id).map(e => (
-                      <div key={e.id} className="text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border bg-slate-50 text-slate-600 border-slate-200">
-                        <ChevronLeft size={12} />
-                        <span className="truncate">{e.source}</span>
-                      </div>
-                    ))}
+                    {parsedData.edges
+                      .filter((e) => e.source === selectedNode.id)
+                      .map((e) => (
+                        <div
+                          key={e.id}
+                          className={`text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border
+                        ${e.type === "fault" ? "bg-red-50 text-red-700 border-red-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}
+                        >
+                          <ChevronRight size={12} />
+                          <span className="truncate flex-1">{e.target}</span>
+                          {e.label && (
+                            <span className="text-[10px] text-slate-400">
+                              ({e.label})
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    {parsedData.edges
+                      .filter((e) => e.target === selectedNode.id)
+                      .map((e) => (
+                        <div
+                          key={e.id}
+                          className="text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border bg-slate-50 text-slate-600 border-slate-200"
+                        >
+                          <ChevronLeft size={12} />
+                          <span className="truncate">{e.source}</span>
+                        </div>
+                      ))}
                   </div>
                 </div>
 
-                {typeof selectedNode.data.xmlElement === 'string' && selectedNode.data.xmlElement && (
-                  <div>
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">XML</div>
-                    <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded overflow-auto max-h-40 font-mono">
-                      {selectedNode.data.xmlElement.slice(0, 600)}
-                      {selectedNode.data.xmlElement.length > 600 && '...'}
-                    </pre>
-                  </div>
-                )}
+                {typeof selectedNode.data.xmlElement === "string" &&
+                  selectedNode.data.xmlElement && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                        XML
+                      </div>
+                      <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded overflow-auto max-h-40 font-mono">
+                        {selectedNode.data.xmlElement.slice(0, 600)}
+                        {selectedNode.data.xmlElement.length > 600 && "..."}
+                      </pre>
+                    </div>
+                  )}
               </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6">
               <Info className="w-12 h-12 mb-3 opacity-20" />
-              <p className="text-center text-xs">Select a node to view details</p>
+              <p className="text-center text-xs">
+                Select a node to view details
+              </p>
             </div>
           )}
         </div>
@@ -724,27 +909,46 @@ const App: React.FC = () => {
         className="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white border border-slate-200 rounded-r-lg shadow-md p-1.5 hover:bg-slate-50 transition-all"
         style={{ left: sidebarOpen ? 308 : 0 }}
       >
-        {sidebarOpen ? <ChevronLeftCircle size={20} className="text-slate-500" /> : <ChevronRightCircle size={20} className="text-slate-500" />}
+        {sidebarOpen ? (
+          <ChevronLeftCircle size={20} className="text-slate-500" />
+        ) : (
+          <ChevronRightCircle size={20} className="text-slate-500" />
+        )}
       </button>
 
       {/* CANVAS AREA */}
       <div className="flex-1 relative overflow-hidden">
         {/* Toolbar */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-xl shadow-lg border border-slate-200 px-2 py-1.5 flex items-center gap-1">
-          <button onClick={() => setScale(s => Math.min(s + 0.15, 2))} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Zoom In">
+          <button
+            onClick={() => setScale((s) => Math.min(s + 0.15, 2))}
+            className="p-1.5 hover:bg-slate-100 rounded-lg"
+            title="Zoom In"
+          >
             <ZoomIn size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => setScale(s => Math.max(s - 0.15, 0.2))} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Zoom Out">
+          <button
+            onClick={() => setScale((s) => Math.max(s - 0.15, 0.2))}
+            className="p-1.5 hover:bg-slate-100 rounded-lg"
+            title="Zoom Out"
+          >
             <ZoomOut size={16} className="text-slate-600" />
           </button>
-          <button onClick={() => { setPan({ x: 0, y: 0 }); setScale(0.9); }} className="p-1.5 hover:bg-slate-100 rounded-lg" title="Reset">
+          <button
+            onClick={() => {
+              setPan({ x: 0, y: 0 });
+              setScale(0.9);
+            }}
+            className="p-1.5 hover:bg-slate-100 rounded-lg"
+            title="Reset"
+          >
             <Home size={16} className="text-slate-600" />
           </button>
           <div className="w-px h-5 bg-slate-200 mx-1"></div>
-          <button 
+          <button
             onClick={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-medium transition-colors
-              ${autoLayoutEnabled ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-100 text-slate-600'}`}
+              ${autoLayoutEnabled ? "bg-blue-100 text-blue-700" : "hover:bg-slate-100 text-slate-600"}`}
           >
             <Layout size={14} />
             Auto-Layout
@@ -759,26 +963,53 @@ const App: React.FC = () => {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
+          className="w-full h-full cursor-grab active:cursor-grabbing select-none"
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
           onWheel={onWheel}
           style={{
-            backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
-            backgroundPosition: `${pan.x}px ${pan.y}px`
+            backgroundImage:
+              "radial-gradient(circle, #cbd5e1 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+            backgroundPosition: `${pan.x}px ${pan.y}px`,
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: '0 0' }}>
+          <div
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transformOrigin: "0 0",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "4000px",
+              height: "4000px",
+            }}
+          >
             {/* SVG for edges */}
             <svg className="absolute top-0 left-0 w-1 h-1 overflow-visible pointer-events-none">
               <defs>
-                <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <marker
+                  id="arrow"
+                  markerWidth="8"
+                  markerHeight="6"
+                  refX="7"
+                  refY="3"
+                  orient="auto"
+                >
                   <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" />
                 </marker>
-                <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <marker
+                  id="arrow-red"
+                  markerWidth="8"
+                  markerHeight="6"
+                  refX="7"
+                  refY="3"
+                  orient="auto"
+                >
                   <polygon points="0 0, 8 3, 0 6" fill="#ef4444" />
                 </marker>
               </defs>
@@ -786,7 +1017,7 @@ const App: React.FC = () => {
             </svg>
 
             {/* Nodes */}
-            {parsedData.nodes.map(node => {
+            {parsedData.nodes.map((node) => {
               const config = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
               const isSelected = selectedNode?.id === node.id;
 
@@ -795,43 +1026,56 @@ const App: React.FC = () => {
                   key={node.id}
                   className="flow-node absolute"
                   style={{ left: node.x, top: node.y, width: node.width }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedNode(node); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedNode(node);
+                  }}
                 >
                   {/* Top connector dot */}
-                  {node.type !== 'START' && (
+                  {node.type !== "START" && (
                     <div className="flex justify-center -mb-1.5 relative z-10">
                       <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow"></div>
                     </div>
                   )}
 
                   {/* Node card */}
-                  <div className={`
+                  <div
+                    className={`
                     rounded-xl border-2 shadow-md cursor-pointer overflow-hidden transition-all
-                    ${isSelected ? 'border-blue-500 shadow-lg ring-2 ring-blue-200' : 'border-slate-200 hover:border-slate-300 hover:shadow-lg'}
+                    ${isSelected ? "border-blue-500 shadow-lg ring-2 ring-blue-200" : "border-slate-200 hover:border-slate-300 hover:shadow-lg"}
                     bg-white
-                  `}>
+                  `}
+                  >
                     <div className="flex items-stretch">
                       {/* Icon */}
-                      <div 
+                      <div
                         className="w-10 flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: config.color }}
                       >
-                        {React.createElement(config.icon, { size: 16, className: 'text-white' })}
+                        {React.createElement(config.icon, {
+                          size: 16,
+                          className: "text-white",
+                        })}
                       </div>
-                      
+
                       {/* Content */}
                       <div className="flex-1 px-3 py-2 min-w-0">
                         <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
                           {config.label}
                         </div>
-                        <div className="text-sm font-semibold text-slate-800 truncate" title={node.label}>
+                        <div
+                          className="text-sm font-semibold text-slate-800 truncate"
+                          title={node.label}
+                        >
                           {node.label}
                         </div>
-                        {node.type === 'START' && typeof node.data.object === 'string' && node.data.object && (
-                          <div className="text-[10px] text-slate-500 mt-0.5">
-                            Object: {node.data.object}
-                          </div>
-                        )}
+                        {node.type === "START" &&
+                          typeof node.data.object === "string" &&
+                          node.data.object && (
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              Object: {node.data.object}
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>

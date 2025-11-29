@@ -45,14 +45,21 @@
     "menus": {
       "editor/title": [
         {
-          "when": "resourceExtname == .xml && resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "when": "resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "command": "sf-flow-visualizer.show",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "resourceFilename =~ /\\.flow-meta\\.xml$/",
           "command": "sf-flow-visualizer.show",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "when": "resourceExtname == .xml && resourceFilename =~ /\\.flow-meta\\.xml$/",
+          "when": "resourceFilename =~ /\\.flow-meta\\.xml$/",
           "command": "sf-flow-visualizer.showFromExplorer",
           "group": "navigation"
         }
@@ -75,7 +82,11 @@
         "sf-flow-visualizer.theme": {
           "type": "string",
           "default": "light",
-          "enum": ["light", "dark", "auto"],
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
           "description": "Theme for the flow visualizer"
         }
       }
