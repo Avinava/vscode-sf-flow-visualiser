@@ -139,16 +139,19 @@ const EdgeLabel: React.FC<EdgeLabelProps> = ({ x, y, label, isFault }) => (
 
 /**
  * Generate an orthogonal path with rounded corners
- * Uses bottom-bend strategy: go down first, then horizontal, then down to target
+ * For branch drops: keeps vertical line from source, bends near target
+ * For general routing: bends near the target for cleaner appearance
  */
 function createOrthogonalPath(
   srcX: number,
   srcY: number,
   tgtX: number,
   tgtY: number,
-  cornerRadius: number = CORNER_RADIUS
+  cornerRadius: number = CORNER_RADIUS,
+  bendStrategy: "near-target" | "near-source" | "midpoint" = "near-target"
 ): string {
   const dx = tgtX - srcX;
+  const dy = tgtY - srcY;
 
   if (Math.abs(dx) < 5) {
     // Straight vertical line
@@ -157,13 +160,28 @@ function createOrthogonalPath(
 
   const sign = dx > 0 ? 1 : -1;
 
-  // For branch drops: bend happens just above the target (bottom-bend strategy)
-  // This keeps vertical lines straight from the branch line and bends near the target
-  const bendY = tgtY - 35; // Bend 35px above target
+  // Determine bend Y position based on strategy
+  let bendY: number;
 
-  if (Math.abs(tgtY - srcY) < 60) {
-    // Short vertical distance - use smaller curves closer to target
-    const shortBendY = tgtY - 25;
+  if (bendStrategy === "near-source") {
+    // Bend shortly after source (good for branch lines coming from decision)
+    bendY = srcY + Math.min(40, dy / 4);
+  } else if (bendStrategy === "midpoint") {
+    bendY = srcY + dy / 2;
+  } else {
+    // "near-target" - Bend closer to target for cleaner branch drops
+    bendY = tgtY - Math.min(35, dy / 4);
+  }
+
+  // Ensure bend is between source and target
+  bendY = Math.max(
+    srcY + cornerRadius + 5,
+    Math.min(bendY, tgtY - cornerRadius - 5)
+  );
+
+  // For very short vertical distances, use simpler path
+  if (Math.abs(dy) < 60) {
+    const shortBendY = Math.max(srcY + 15, tgtY - 25);
     return `M ${srcX} ${srcY} 
             L ${srcX} ${shortBendY - cornerRadius}
             Q ${srcX} ${shortBendY}, ${srcX + sign * cornerRadius} ${shortBendY}
@@ -178,9 +196,7 @@ function createOrthogonalPath(
           L ${tgtX - sign * cornerRadius} ${bendY}
           Q ${tgtX} ${bendY}, ${tgtX} ${bendY + cornerRadius}
           L ${tgtX} ${tgtY}`;
-}
-
-/**
+} /**
  * Generate a fault connector path (exits horizontally from right side)
  * Uses dynamic horizontal offset based on fault index to avoid overlapping
  */

@@ -447,6 +447,12 @@ export function autoLayout(
   // Position storage
   const positions = new Map<string, { x: number; y: number }>();
 
+  // Track maximum X position for fault paths to avoid overlap
+  let maxFaultX = START_X + COL_WIDTH * 1.5;
+
+  // Track fault targets that have been positioned
+  const faultTargetPositioned = new Set<string>();
+
   /**
    * Recursively layout nodes starting from nodeId
    */
@@ -476,12 +482,28 @@ export function autoLayout(
       (e) => e.type === "fault" || e.type === "fault-end"
     );
 
-    // Handle fault paths - position to the right at the SAME vertical level
+    // Handle fault paths - position to the right
     faultOuts.forEach((edge, faultIndex) => {
+      const targetNode = nodeMap.get(edge.target);
+      const isFaultEnd =
+        edge.type === "fault-end" || targetNode?.type === "END";
+
+      // Skip if this is a GoTo fault (target already positioned elsewhere)
+      if (edge.isGoTo && positions.has(edge.target)) {
+        return;
+      }
+
+      // Skip if fault target was already positioned by another fault path
+      if (faultTargetPositioned.has(edge.target) && !isFaultEnd) {
+        return;
+      }
+
       if (!visited.has(edge.target)) {
-        const targetNode = nodeMap.get(edge.target);
-        const isFaultEnd =
-          edge.type === "fault-end" || targetNode?.type === "END";
+        // Calculate X position for fault path, avoiding overlap
+        const faultX = Math.max(
+          centerX + COL_WIDTH * 1.5,
+          maxFaultX + COL_WIDTH * 0.5 * faultIndex
+        );
 
         if (isFaultEnd) {
           // For fault-end: position END node at same Y level for straight horizontal line
@@ -491,19 +513,22 @@ export function autoLayout(
           const endNodeY = srcCenterY - endNodeHeight / 2;
 
           positions.set(edge.target, {
-            x: centerX + COL_WIDTH * 1.5,
+            x: faultX,
             y: endNodeY,
           });
           visited.add(edge.target);
+          maxFaultX = Math.max(maxFaultX, faultX + COL_WIDTH * 0.5);
         } else {
-          // Regular fault path
+          // Regular fault path - position the fault target node
+          faultTargetPositioned.add(edge.target);
           layoutNode(
             edge.target,
-            centerX + COL_WIDTH * 1.5,
+            faultX,
             row + faultIndex,
             undefined,
             new Set(visited)
           );
+          maxFaultX = Math.max(maxFaultX, faultX + COL_WIDTH * 0.5);
         }
       }
     });
