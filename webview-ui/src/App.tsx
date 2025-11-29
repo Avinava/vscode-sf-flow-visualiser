@@ -644,7 +644,7 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
           // Vertically center the END node with the source node
           // END circle is 40px tall, source node has height NODE_HEIGHT
           // We want: srcPos.y + NODE_HEIGHT/2 = tgtPos.y + 20 (center of END circle)
-          tgtPos.y = srcPos.y + (NODE_HEIGHT / 2) - 20;
+          tgtPos.y = srcPos.y + NODE_HEIGHT / 2 - 20;
         }
       }
     }
