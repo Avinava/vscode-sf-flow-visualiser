@@ -5,12 +5,18 @@
 <h1 align="center">SF Flow Visualizer</h1>
 
 <p align="center">
-  <strong>Visualize Salesforce Flow XML files with an interactive diagram in VS Code</strong>
+  <strong>Transform Salesforce Flow XML files into beautiful, interactive diagrams</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Avinava/vscode-sf-flow-visualiser/releases">
-    <img src="https://img.shields.io/github/v/release/Avinava/vscode-sf-flow-visualiser?style=flat-square" alt="Release">
+  <a href="https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/avidev9.sf-flow-visualizer?style=flat-square&label=VS%20Code%20Marketplace&logo=visual-studio-code" alt="VS Code Marketplace">
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer">
+    <img src="https://img.shields.io/visual-studio-marketplace/d/avidev9.sf-flow-visualizer?style=flat-square" alt="Downloads">
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer">
+    <img src="https://img.shields.io/visual-studio-marketplace/r/avidev9.sf-flow-visualizer?style=flat-square" alt="Rating">
   </a>
   <a href="https://github.com/Avinava/vscode-sf-flow-visualiser/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/Avinava/vscode-sf-flow-visualiser?style=flat-square" alt="License">
@@ -19,15 +25,33 @@
 
 ---
 
-## ✨ Features
+## 🖼️ Preview
 
-- 🎨 **Interactive Flow Diagram** - Beautiful, modern visualization of your Salesforce Flows
-- 🔍 **Node Details Panel** - Click any node to view its properties, connections, and raw XML
-- 🔄 **Smart Auto-Layout** - Intelligent tree-based layout with proper branch and merge handling
-- 🖱️ **Smooth Navigation** - Pan with drag, zoom with scroll, and reset with one click
-- 📁 **Multiple Access Points** - Editor title bar, context menu, explorer, and command palette
-- 🎯 **Branch Visualization** - Clear representation of decision branches, loops, and fault paths
-- ⚡ **Fault Path Tracking** - Red dashed connectors clearly show error handling paths
+<p align="center">
+  <img src="assets/screenshot.png" alt="SF Flow Visualizer in action" width="100%">
+</p>
+
+<p align="center">
+  <em>Visualize complex Salesforce Flows with an intuitive, modern interface</em>
+</p>
+
+---
+
+## ✨ Why SF Flow Visualizer?
+
+Working with Salesforce Flows in XML format can be challenging. This extension brings your flows to life with an interactive, visual representation that makes understanding and debugging flows effortless.
+
+### Key Features
+
+- 🎨 **Interactive Flow Diagram** - Beautiful, modern visualization of your Salesforce Flows with color-coded elements
+- 🔍 **Detailed Node Inspector** - Click any node to view its properties, connections, and raw XML in a convenient sidebar
+- 🔄 **Smart Auto-Layout** - Intelligent tree-based layout algorithm that handles complex flows, branches, and merges
+- 🖱️ **Smooth Navigation** - Pan with drag, zoom with scroll wheel, and reset view with one click
+- 📁 **Multiple Access Points** - Open from editor title bar, context menu, explorer, or command palette
+- 🎯 **Branch Visualization** - Clear representation of decision outcomes, loop iterations, and fault paths
+- ⚡ **Fault Path Tracking** - Red dashed connectors clearly show error handling and fault paths
+- 🚀 **Zero Configuration** - Works out of the box with any Salesforce Flow XML file
+- 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
 
 ## 📋 Supported Flow Elements
 
@@ -47,38 +71,22 @@
 | ⏰ Wait | Pause | Wait events and scheduled paths |
 | ⚠️ Custom Error | Error | Custom error handling |
 
-## 🚀 Installation
+## 🚀 Quick Start
 
-### From VS Code Marketplace
+### Installation
 
-1. Open VS Code
-2. Go to Extensions (`Cmd+Shift+X` / `Ctrl+Shift+X`)
-3. Search for "SF Flow Visualizer"
+1. Open **VS Code**
+2. Press `Cmd+Shift+X` (Mac) or `Ctrl+Shift+X` (Windows/Linux)
+3. Search for **"SF Flow Visualizer"**
 4. Click **Install**
 
-### From VSIX File
+Or [install directly from the marketplace](https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer)
 
-1. Download the `.vsix` file from [Releases](https://github.com/Avinava/vscode-sf-flow-visualiser/releases)
-2. In VS Code, open Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
-3. Run `Extensions: Install from VSIX...`
-4. Select the downloaded file
+### First Use
 
-### From Source
-
-```bash
-# Clone the repository
-git clone https://github.com/Avinava/vscode-sf-flow-visualiser.git
-cd vscode-sf-flow-visualiser
-
-# Install dependencies
-npm run install:all
-
-# Build the extension
-npm run build
-
-# Package the extension
-npm run package
-```
+1. Open any `.flow-meta.xml` file in your Salesforce project
+2. Click the **graph icon** (📊) in the editor title bar
+3. Explore your flow visually!
 
 ## 📖 Usage
 
@@ -115,73 +123,97 @@ npm run package
 - **Branch labels**: Show decision outcomes (e.g., "Match Found", "Default")
 - **Loop connectors**: "For Each" (into loop) and "After Last" (exit loop)
 
-## ⚙️ Configuration
+## ⚙️ Extension Settings
+
+This extension provides the following configurable settings:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `sf-flow-visualizer.autoLayout` | `true` | Automatically arrange nodes for optimal visibility |
-| `sf-flow-visualizer.theme` | `light` | Color theme: `light`, `dark`, or `auto` |
+| `sf-flow-visualizer.autoLayout` | `true` | Automatically arrange nodes for optimal visibility when coordinates are missing |
+| `sf-flow-visualizer.theme` | `light` | Visual theme: `light`, `dark`, or `auto` (follows VS Code theme) |
 
-## 🛠️ Development
+Access settings via `Preferences > Settings` and search for "SF Flow Visualizer".
 
-### Prerequisites
+## 💡 Tips & Tricks
 
-- Node.js 18+
-- VS Code 1.85+
+- **Keyboard Navigation**: Use your mouse wheel to zoom in/out for better focus on specific flow sections
+- **Node Details**: Click on any node to see its full configuration, including formulas and filters
+- **Branch Analysis**: Follow the color-coded paths to understand decision logic and loop iterations
+- **Error Handling**: Red dashed lines show fault paths - perfect for reviewing error handling logic
+- **Performance**: Large flows are handled efficiently with optimized rendering
 
-### Setup
+## 🐛 Troubleshooting
+
+**Flow doesn't display?**
+- Ensure the file has a `.flow-meta.xml` extension
+- Check that the XML is valid Salesforce Flow metadata
+
+**Layout looks odd?**
+- Try clicking the "Auto-Layout" button in the toolbar
+- Reset the view with the home icon (🏠)
+
+**Still having issues?**
+- [Open an issue on GitHub](https://github.com/Avinava/vscode-sf-flow-visualiser/issues)
+
+## 🗺️ Roadmap
+
+- [ ] Export flow diagrams as images (PNG/SVG)
+- [ ] Search and filter nodes within flows
+- [ ] Flow comparison view (diff two versions)
+- [ ] Integration with Salesforce CLI for live flows
+- [ ] Flow metrics and complexity analysis
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/Avinava/vscode-sf-flow-visualiser/issues).
+
+### Development Setup
 
 ```bash
-# Install all dependencies
+# Clone the repository
+git clone https://github.com/Avinava/vscode-sf-flow-visualiser.git
+cd vscode-sf-flow-visualiser
+
+# Install dependencies
 npm run install:all
 
-# Watch for extension changes
-npm run watch
+# Start development
+npm run watch              # Terminal 1: Watch extension
+npm run dev:webview        # Terminal 2: Dev server
 
-# In another terminal, start webview dev server
-npm run dev:webview
-```
-
-### Building
-
-```bash
-# Build everything
+# Build and package
 npm run build
-
-# Package as VSIX
 npm run package
-```
-
-### Project Structure
-
-```
-vscode-sf-flow-visualiser/
-├── src/                    # Extension source code
-│   ├── extension.ts        # Extension entry point
-│   ├── panels/
-│   │   └── FlowPanel.ts    # Webview panel manager
-│   └── utilities/          # Helper functions
-├── webview-ui/             # React webview application
-│   ├── src/
-│   │   ├── App.tsx         # Main visualizer component
-│   │   └── index.tsx       # Entry point
-│   └── vite.config.ts      # Vite configuration
-├── assets/                 # Extension icons
-└── package.json            # Extension manifest
 ```
 
 ## 📝 License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🤝 Contributing
+## ⭐ Show Your Support
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+If this extension helps you work with Salesforce Flows more efficiently, please:
+- ⭐ Star the [GitHub repository](https://github.com/Avinava/vscode-sf-flow-visualiser)
+- ✍️ Leave a [review on the marketplace](https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer)
+- 🐦 Share with your team and the Salesforce community
 
-## 🙏 Credits
+## 🙏 Acknowledgments
 
-Built with:
+Built with modern web technologies:
 - [React](https://reactjs.org/) - UI framework
-- [Vite](https://vitejs.dev/) - Build tool
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [Lucide Icons](https://lucide.dev/) - Icons
+- [Vite](https://vitejs.dev/) - Lightning-fast build tool
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first styling
+- [Lucide Icons](https://lucide.dev/) - Beautiful icon set
+
+---
+
+<p align="center">
+  <strong>Made with ❤️ for the Salesforce Developer Community</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Avinava/vscode-sf-flow-visualiser">GitHub</a> •
+  <a href="https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer">Marketplace</a> •
+  <a href="https://github.com/Avinava/vscode-sf-flow-visualiser/issues">Report Bug</a> •
+  <a href="https://github.com/Avinava/vscode-sf-flow-visualiser/issues">Request Feature</a>
+</p>

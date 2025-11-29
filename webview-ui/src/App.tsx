@@ -729,8 +729,9 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
     faultOuts.forEach((edge, faultIndex) => {
       if (!visited.has(edge.target)) {
         const targetNode = nodeMap.get(edge.target);
-        const isFaultEnd = edge.type === "fault-end" || targetNode?.type === "END";
-        
+        const isFaultEnd =
+          edge.type === "fault-end" || targetNode?.type === "END";
+
         if (isFaultEnd) {
           // For fault-end: position END node at same Y level as source center for straight horizontal line
           // We'll store a special Y offset to align centers
@@ -738,11 +739,11 @@ function autoLayout(nodes: FlowNode[], edges: FlowEdge[]): FlowNode[] {
           const srcCenterY = srcY + (node?.height || NODE_HEIGHT) / 2;
           const endNodeHeight = 40; // END node height
           const endNodeY = srcCenterY - endNodeHeight / 2;
-          
+
           // Store position directly rather than using row calculation
           positions.set(edge.target, {
             x: centerX + COL_WIDTH * 1.5,
-            y: endNodeY
+            y: endNodeY,
           });
           visited.add(edge.target);
         } else {
@@ -1477,10 +1478,10 @@ const App: React.FC = () => {
         // Fault connectors: exit from right side with smart routing
         // Check if the horizontal path would overlap with existing main flow lines
         const cornerRadius = 12;
-        
+
         // Calculate base horizontal offset - increase if there might be overlaps
         // Check if there are any nodes between source and target horizontally
-        const potentialOverlap = parsedData.nodes.some(n => {
+        const potentialOverlap = parsedData.nodes.some((n) => {
           if (n.id === src.id || n.id === tgt.id) return false;
           const nCenterX = n.x + n.width / 2;
           const nCenterY = n.y + n.height / 2;
@@ -1489,10 +1490,14 @@ const App: React.FC = () => {
           const inVerticalRange = Math.abs(nCenterY - srcCenterY) < NODE_HEIGHT;
           return inHorizontalRange && inVerticalRange;
         });
-        
+
         // Use larger offset if potential overlap detected
-        const horizontalEndX = srcRightX + (potentialOverlap ? FAULT_HORIZONTAL_OFFSET * 1.5 : FAULT_HORIZONTAL_OFFSET);
-        
+        const horizontalEndX =
+          srcRightX +
+          (potentialOverlap
+            ? FAULT_HORIZONTAL_OFFSET * 1.5
+            : FAULT_HORIZONTAL_OFFSET);
+
         // Check if target and source are at roughly same Y level
         if (Math.abs(tgtCenterY - srcCenterY) < 15) {
           // Nearly horizontal - draw straight line
@@ -1568,7 +1573,10 @@ const App: React.FC = () => {
         labelY = srcCenterY - 12;
       } else if (isLoopBack) {
         // For Each label - position on the left vertical line segment
-        const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
+        const offsetX = Math.min(
+          50,
+          Math.abs(srcCenterX - tgtCenterX) / 2 + 30
+        );
         const leftX = Math.min(srcCenterX, tgtCenterX) - offsetX;
         labelX = leftX;
         labelY = (srcBottomY + tgtTopY) / 2;
