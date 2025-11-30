@@ -130,7 +130,26 @@ export class ConnectorPathService {
     // Stagger horizontal offset for multiple fault paths
     const baseOffset = FAULT_HORIZONTAL_OFFSET;
     const staggerOffset = faultIndex * 25;
-    const horizontalEndX = src.x + baseOffset + staggerOffset;
+    const safetyMargin = 40; // keep some room before reaching the target column
+    const availableSpace = tgt.x - src.x;
+
+    // Dynamically expand the horizontal offset based on the space between
+    // source and target so fault lanes don't crowd the main path.
+    const desiredOffset = baseOffset + staggerOffset;
+    let horizontalOffset = desiredOffset;
+    if (availableSpace > desiredOffset + safetyMargin) {
+      const extraSpace = availableSpace - desiredOffset - safetyMargin;
+      const adaptiveOffset = desiredOffset + Math.min(extraSpace * 0.75, 200);
+      horizontalOffset = Math.min(
+        adaptiveOffset,
+        availableSpace - safetyMargin
+      );
+    }
+
+    const horizontalEndX = Math.max(
+      src.x + baseOffset * 0.5,
+      Math.min(src.x + horizontalOffset, tgt.x - safetyMargin)
+    );
 
     if (tgt.y > src.y) {
       // Target is below
