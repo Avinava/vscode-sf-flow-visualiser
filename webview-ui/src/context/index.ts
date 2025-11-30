@@ -12,3 +12,6 @@ export type { CanvasContextState, CanvasProviderProps } from "./CanvasContext";
 
 export { ThemeProvider, useTheme } from "./ThemeContext";
 export type { ThemeMode, ThemeColors, ThemeContextValue } from "./ThemeContext";
+
+export { CollapseProvider, useCollapse } from "./CollapseContext";
+export type { CollapseContextValue } from "./CollapseContext";

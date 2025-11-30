@@ -2,12 +2,12 @@
  * Flow Header Component
  *
  * Displays flow metadata in a header bar similar to Salesforce Flow Builder.
- * Shows: flow name, description, status, object, trigger type, API version.
+ * Shows: flow name, description, status, object, trigger type, API version, complexity.
  *
  * Based on Salesforce's Flow Builder header patterns.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import {
   FileText,
   Info,
@@ -17,8 +17,13 @@ import {
   Database,
   Zap,
   Code,
+  Activity,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import type { FlowMetadata } from "../../types";
+import type { ComplexityMetrics } from "../../utils/complexity";
+import { getComplexityColorClass } from "../../utils/complexity";
 
 // ============================================================================
 // TYPES
@@ -27,6 +32,7 @@ import type { FlowMetadata } from "../../types";
 export interface FlowHeaderProps {
   metadata: FlowMetadata;
   fileName?: string;
+  complexity?: ComplexityMetrics | null;
 }
 
 // ============================================================================
@@ -122,9 +128,179 @@ function getStatusStyle(status?: string): {
 // COMPONENT
 // ============================================================================
 
+/**
+ * Complexity Badge with clickable popover showing details
+ */
+const ComplexityBadge: React.FC<{ complexity: ComplexityMetrics }> = ({
+  complexity,
+}) => {
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${getComplexityColorClass(complexity.rating)}`}
+      >
+        <Activity className="w-3.5 h-3.5" />
+        <span>CC: {complexity.cyclomaticComplexity}</span>
+        <span className="hidden sm:inline capitalize">
+          ({complexity.rating.replace("-", " ")})
+        </span>
+      </button>
+
+      {/* Details Popover */}
+      {showDetails && (
+        <>
+          {/* Backdrop to close */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowDetails(false)}
+          />
+          {/* Popover */}
+          <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 animate-in">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-slate-500" />
+                <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                  Complexity Details
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDetails(false)}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+              >
+                <X size={14} className="text-slate-400" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-3 space-y-3">
+              {/* Score and Rating */}
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                  {complexity.cyclomaticComplexity}
+                </span>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${getComplexityColorClass(complexity.rating)}`}
+                >
+                  {complexity.rating.replace("-", " ")}
+                </span>
+              </div>
+
+              {/* Description */}
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                {complexity.description}
+              </p>
+
+              {/* Breakdown */}
+              <div>
+                <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+                  Score Breakdown
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">
+                      Base complexity
+                    </span>
+                    <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                      {complexity.breakdown.base}
+                    </span>
+                  </div>
+                  {complexity.breakdown.decisions > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Decision branches
+                      </span>
+                      <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                        +{complexity.breakdown.decisions}
+                      </span>
+                    </div>
+                  )}
+                  {complexity.breakdown.loops > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Loop iterations
+                      </span>
+                      <span className="font-mono font-medium text-pink-600 dark:text-pink-400">
+                        +{complexity.breakdown.loops}
+                      </span>
+                    </div>
+                  )}
+                  {complexity.breakdown.waits > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Wait paths
+                      </span>
+                      <span className="font-mono font-medium text-yellow-600 dark:text-yellow-400">
+                        +{complexity.breakdown.waits}
+                      </span>
+                    </div>
+                  )}
+                  {complexity.breakdown.faults > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Fault handlers
+                      </span>
+                      <span className="font-mono font-medium text-red-600 dark:text-red-400">
+                        +{complexity.breakdown.faults}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-700">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      Total
+                    </span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
+                      {complexity.cyclomaticComplexity}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              {complexity.recommendations.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+                    Recommendations
+                  </div>
+                  <div className="space-y-1">
+                    {complexity.recommendations.map((rec, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-400"
+                      >
+                        <AlertTriangle
+                          size={11}
+                          className="text-amber-500 mt-0.5 flex-shrink-0"
+                        />
+                        <span>{rec}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with info */}
+            <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900/50 rounded-b-lg border-t border-slate-200 dark:border-slate-700">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Cyclomatic complexity measures the number of linearly
+                independent paths through a flow. Lower is better.
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 export const FlowHeader: React.FC<FlowHeaderProps> = ({
   metadata,
   fileName,
+  complexity,
 }) => {
   const flowName =
     metadata.label ||
@@ -168,6 +344,9 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
             )}
           </span>
         </div>
+
+        {/* Center/Right: Complexity Score with clickable popover */}
+        {complexity && <ComplexityBadge complexity={complexity} />}
 
         {/* Right: Trigger Info */}
         {(metadata.object || triggerLabel) && (

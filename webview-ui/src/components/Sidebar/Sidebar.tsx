@@ -14,8 +14,7 @@ export interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   selectedNode: FlowNode | null;
-  nodeCount: number;
-  edgeCount: number;
+  nodes: FlowNode[];
   edges: FlowEdge[];
 }
 
@@ -23,8 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onToggle,
   selectedNode,
-  nodeCount,
-  edgeCount,
+  nodes,
   edges,
 }) => {
   return (
@@ -35,7 +33,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         style={{ width: isOpen ? 320 : 0 }}
       >
         {/* Stats */}
-        <FlowStats nodeCount={nodeCount} edgeCount={edgeCount} />
+        <FlowStats
+          nodeCount={nodes.length}
+          edgeCount={edges.length}
+          nodes={nodes}
+          edges={edges}
+        />
 
         {/* Details Panel */}
         <div className="flex-1 overflow-y-auto">

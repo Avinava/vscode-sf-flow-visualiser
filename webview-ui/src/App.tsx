@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
@@ -14,7 +14,16 @@ import {
 } from "./hooks";
 
 // Import context
-import { ThemeProvider, useTheme } from "./context";
+import {
+  ThemeProvider,
+  useTheme,
+  CollapseProvider,
+  useCollapse,
+} from "./context";
+
+// Import utilities
+import { computeVisibility, getBranchingNodeIds } from "./utils/collapse";
+import { calculateComplexity } from "./utils/complexity";
 
 // Import types
 import type { BoundingBox } from "./hooks/useCanvasInteraction";
@@ -30,6 +39,9 @@ const AppContent: React.FC = () => {
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
 
+  // Collapse context for branching nodes
+  const { collapsedNodes, isCollapsed, toggleCollapse } = useCollapse();
+
   // Flow parsing and layout hook
   const {
     parsedData,
@@ -40,16 +52,48 @@ const AppContent: React.FC = () => {
     fileName,
   } = useFlowParser();
 
-  // Calculate node bounds for fit-to-view
-  const getNodeBounds = useCallback((): BoundingBox | null => {
+  // Compute visibility based on collapsed nodes
+  const { hiddenNodes, hiddenEdges } = useMemo(() => {
+    if (collapsedNodes.size === 0) {
+      return { hiddenNodes: new Set<string>(), hiddenEdges: new Set<string>() };
+    }
+    return computeVisibility(
+      collapsedNodes,
+      parsedData.nodes,
+      parsedData.edges
+    );
+  }, [collapsedNodes, parsedData.nodes, parsedData.edges]);
+
+  // Get list of branching node IDs
+  const branchingNodeIds = useMemo(() => {
+    return new Set(getBranchingNodeIds(parsedData.nodes));
+  }, [parsedData.nodes]);
+
+  // Calculate complexity metrics
+  const complexityMetrics = useMemo(() => {
     if (parsedData.nodes.length === 0) return null;
+    return calculateComplexity(parsedData.nodes, parsedData.edges);
+  }, [parsedData.nodes, parsedData.edges]);
+
+  // Filter visible nodes and edges
+  const visibleNodes = useMemo(() => {
+    return parsedData.nodes.filter((n) => !hiddenNodes.has(n.id));
+  }, [parsedData.nodes, hiddenNodes]);
+
+  const visibleEdges = useMemo(() => {
+    return parsedData.edges.filter((e) => !hiddenEdges.has(e.id));
+  }, [parsedData.edges, hiddenEdges]);
+
+  // Calculate node bounds for fit-to-view (use visible nodes only)
+  const getNodeBounds = useCallback((): BoundingBox | null => {
+    if (visibleNodes.length === 0) return null;
 
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    for (const node of parsedData.nodes) {
+    for (const node of visibleNodes) {
       minX = Math.min(minX, node.x);
       minY = Math.min(minY, node.y);
       maxX = Math.max(maxX, node.x + node.width);
@@ -64,7 +108,7 @@ const AppContent: React.FC = () => {
       width: maxX - minX,
       height: maxY - minY,
     };
-  }, [parsedData.nodes]);
+  }, [visibleNodes]);
 
   // Canvas interaction hook with theme toggle callback
   const {
@@ -134,7 +178,11 @@ const AppContent: React.FC = () => {
         ${isDark ? "bg-slate-900" : "bg-slate-100"}`}
     >
       {/* FLOW HEADER */}
-      <FlowHeader metadata={parsedData.metadata} fileName={fileName} />
+      <FlowHeader
+        metadata={parsedData.metadata}
+        fileName={fileName}
+        complexity={complexityMetrics}
+      />
 
       {/* MAIN CONTENT */}
       <div className="flex flex-1 overflow-hidden">
@@ -143,8 +191,7 @@ const AppContent: React.FC = () => {
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           selectedNode={selectedNode}
-          nodeCount={parsedData.nodes.length}
-          edgeCount={parsedData.edges.length}
+          nodes={parsedData.nodes}
           edges={parsedData.edges}
         />
 
@@ -170,22 +217,25 @@ const AppContent: React.FC = () => {
           >
             {/* SVG for edges */}
             <EdgeRenderer
-              nodes={parsedData.nodes}
-              edges={parsedData.edges}
+              nodes={visibleNodes}
+              edges={visibleEdges}
               selectedNodeId={selectedNode?.id}
               highlightedPath={highlightedPath}
               onEdgeClick={handleEdgeClick}
             />
 
             {/* Nodes */}
-            {parsedData.nodes.map((node) => (
+            {visibleNodes.map((node) => (
               <FlowNodeComponent
                 key={node.id}
                 node={node}
                 isSelected={selectedNode?.id === node.id}
                 isGoToTarget={goToTargetCounts.has(node.id)}
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
+                isCollapsed={isCollapsed(node.id)}
+                isBranchingNode={branchingNodeIds.has(node.id)}
                 onSelect={handleSelectNode}
+                onToggleCollapse={toggleCollapse}
               />
             ))}
           </FlowCanvas>
@@ -209,7 +259,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ThemeProvider>
-      <AppContent />
+      <CollapseProvider>
+        <AppContent />
+      </CollapseProvider>
     </ThemeProvider>
   );
 };
