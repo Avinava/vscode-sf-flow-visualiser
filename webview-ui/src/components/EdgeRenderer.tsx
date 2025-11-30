@@ -103,6 +103,7 @@ export const EdgeMarkers: React.FC = () => (
 
 // ============================================================================
 // EDGE LABEL COMPONENT
+// Based on Salesforce's connector-badge styling from alcStyles.js
 // ============================================================================
 
 interface EdgeLabelProps {
@@ -110,24 +111,33 @@ interface EdgeLabelProps {
   y: number;
   label: string;
   isFault?: boolean;
+  isGoTo?: boolean;
 }
 
-const EdgeLabel: React.FC<EdgeLabelProps> = ({ x, y, label, isFault }) => (
+const EdgeLabel: React.FC<EdgeLabelProps> = ({
+  x,
+  y,
+  label,
+  isFault,
+  isGoTo,
+}) => (
   <foreignObject
-    x={x - 75}
+    x={x - 85}
     y={y - 12}
-    width={150}
+    width={170}
     height={24}
     style={{ overflow: "visible" }}
   >
     <div
-      className={`text-[10px] px-2.5 py-1 rounded-full text-center truncate border shadow-sm mx-auto font-medium
+      className={`text-[10px] px-2.5 py-0.5 rounded-full text-center truncate border shadow-sm mx-auto font-medium
         ${
           isFault
             ? "bg-red-500 text-white border-red-600"
-            : "bg-white text-slate-600 border-slate-200 max-w-[140px]"
+            : isGoTo
+              ? "bg-blue-50 text-blue-600 border-blue-200"
+              : "bg-white text-slate-600 border-slate-200"
         }`}
-      style={{ width: "fit-content", margin: "0 auto" }}
+      style={{ width: "fit-content", margin: "0 auto", maxWidth: "160px" }}
     >
       {label}
     </div>
@@ -796,6 +806,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
               y={labelY}
               label={edge.label}
               isFault={showAsRed}
+              isGoTo={showAsBlue}
             />
           )}
         </g>

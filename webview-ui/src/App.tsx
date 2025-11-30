@@ -133,15 +133,15 @@ const App: React.FC = () => {
     }
   }, [xmlInput, autoLayoutEnabled]);
 
-  // Compute nodes that are targets of GoTo connectors
-  const goToTargets = useMemo(() => {
-    const targets = new Set<string>();
+  // Compute nodes that are targets of GoTo connectors and their counts
+  const goToTargetCounts = useMemo(() => {
+    const counts = new Map<string, number>();
     parsedData.edges.forEach((edge) => {
       if (edge.isGoTo) {
-        targets.add(edge.target);
+        counts.set(edge.target, (counts.get(edge.target) || 0) + 1);
       }
     });
-    return targets;
+    return counts;
   }, [parsedData.edges]);
 
   // Canvas interactions - use document-level events for reliable dragging
@@ -443,7 +443,8 @@ const App: React.FC = () => {
                   key={node.id}
                   node={node}
                   isSelected={selectedNode?.id === node.id}
-                  isGoToTarget={goToTargets.has(node.id)}
+                  isGoToTarget={goToTargetCounts.has(node.id)}
+                  incomingGoToCount={goToTargetCounts.get(node.id) || 0}
                   onSelect={setSelectedNode}
                 />
               ))}

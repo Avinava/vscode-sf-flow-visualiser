@@ -7,6 +7,7 @@
  * - alcNode.js: Node rendering, icon handling, selection
  * - alcCompoundNode.js: Compound node structure
  * - alcElementCard.js: Element card mode
+ * - alcStartElementCard.js: Start node expansion panel
  */
 
 import React from "react";
@@ -21,7 +22,35 @@ interface FlowNodeProps {
   node: FlowNodeType;
   isSelected: boolean;
   isGoToTarget?: boolean;
+  incomingGoToCount?: number;
   onSelect: (node: FlowNodeType) => void;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get human-readable record trigger type
+ */
+function getRecordTriggerLabel(recordTriggerType?: string): string {
+  const types: Record<string, string> = {
+    Create: "A record is created",
+    Update: "A record is updated",
+    CreateOrUpdate: "A record is created or updated",
+    Delete: "A record is deleted",
+  };
+  return types[recordTriggerType || ""] || recordTriggerType || "";
+}
+
+/**
+ * Get optimize for label
+ */
+function getOptimizeForLabel(triggerType?: string): string {
+  if (triggerType === "RecordBeforeSave") {
+    return "Fast Field Updates";
+  }
+  return "Actions and Related Records";
 }
 
 // ============================================================================
@@ -32,6 +61,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   node,
   isSelected,
   isGoToTarget = false,
+  incomingGoToCount = 0,
   onSelect,
 }) => {
   const config: NodeTypeConfig = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
@@ -64,6 +94,13 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
 
           {/* Label */}
           <div className="text-xs font-medium text-slate-500 ml-2">End</div>
+
+          {/* Incoming GoTo indicator */}
+          {incomingGoToCount > 0 && (
+            <div className="text-[10px] text-blue-500 italic ml-2">
+              ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
+            </div>
+          )}
         </div>
       );
     }
@@ -94,6 +131,102 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
 
         {/* Label */}
         <div className="text-xs font-medium text-slate-500 mt-1.5">End</div>
+
+        {/* Incoming GoTo indicator */}
+        {incomingGoToCount > 0 && (
+          <div className="text-[10px] text-blue-500 italic mt-0.5">
+            ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Special rendering for START nodes with expanded trigger details
+  if (node.type === "START") {
+    const hasObject = typeof node.data.object === "string" && node.data.object;
+    const hasTriggerInfo = node.data.triggerType || node.data.recordTriggerType;
+    const showExpansion = hasObject || hasTriggerInfo;
+
+    return (
+      <div
+        className="flow-node absolute"
+        style={{ left: node.x, top: node.y, width: node.width }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(node);
+        }}
+      >
+        {/* Node card */}
+        <div
+          className={`
+            rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
+            ${
+              isSelected
+                ? "border-blue-500 shadow-lg ring-2 ring-blue-200"
+                : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+            }
+            bg-white
+          `}
+        >
+          {/* Main node header */}
+          <div className="flex items-stretch">
+            <div
+              className="w-12 flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: config.color }}
+            >
+              <config.icon size={18} className="text-white" />
+            </div>
+            <div className="flex-1 px-3 py-2 min-w-0">
+              <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+                {config.label}
+              </div>
+              <div
+                className="text-sm font-semibold text-slate-800 truncate"
+                title={node.label}
+              >
+                {node.label}
+              </div>
+            </div>
+          </div>
+
+          {/* Trigger details panel (like Salesforce) - simplified for read-only */}
+          {showExpansion && (
+            <div className="border-t border-slate-100 px-3 py-2 bg-slate-50 text-[11px]">
+              {hasObject && (
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-500">Object:</span>
+                  <span className="font-medium text-slate-700">
+                    {node.data.object}
+                  </span>
+                </div>
+              )}
+              {node.data.recordTriggerType && (
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-500">Trigger:</span>
+                  <span className="font-medium text-slate-700">
+                    {getRecordTriggerLabel(
+                      node.data.recordTriggerType as string
+                    )}
+                  </span>
+                </div>
+              )}
+              {node.data.triggerType && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Optimize for:</span>
+                  <span className="font-medium text-slate-700 truncate ml-2">
+                    {getOptimizeForLabel(node.data.triggerType as string)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom connector dot */}
+        <div className="flex justify-center -mt-1 relative z-10">
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+        </div>
       </div>
     );
   }
@@ -109,19 +242,17 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       }}
     >
       {/* Top connector dot */}
-      {node.type !== "START" && (
-        <div className="flex justify-center -mb-1 relative z-10">
-          {isGoToTarget && (
-            <div
-              className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white bg-blue-500 shadow-sm"
-              title="GoTo Target"
-            >
-              ↵
-            </div>
-          )}
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
-        </div>
-      )}
+      <div className="flex justify-center -mb-1 relative z-10">
+        {isGoToTarget && (
+          <div
+            className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 shadow-sm whitespace-nowrap"
+            title={`${incomingGoToCount} incoming GoTo connection${incomingGoToCount > 1 ? "s" : ""}`}
+          >
+            ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
+          </div>
+        )}
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+      </div>
 
       {/* Node card */}
       <div
@@ -169,13 +300,6 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             >
               {node.label}
             </div>
-            {node.type === "START" &&
-              typeof node.data.object === "string" &&
-              node.data.object && (
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  Object: {node.data.object}
-                </div>
-              )}
           </div>
         </div>
       </div>

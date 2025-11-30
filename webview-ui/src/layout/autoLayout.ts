@@ -439,12 +439,19 @@ export function autoLayout(
   // const incoming = createIncomingMap(edges);
 
   // Layout dimensions
-  const ROW_HEIGHT = config.node.height + config.grid.vGap;
+  const V_GAP = config.grid.vGap;
+  const DEFAULT_NODE_HEIGHT = config.node.height;
   const COL_WIDTH = config.node.width + config.grid.hGap;
   const START_X = config.start.x;
   const START_Y = config.start.y;
 
-  // Position storage
+  // Helper to get node height (use actual height or default)
+  const getNodeHeight = (nodeId: string): number => {
+    const n = nodeMap.get(nodeId);
+    return n?.height || DEFAULT_NODE_HEIGHT;
+  };
+
+  // Position storage: x, y
   const positions = new Map<string, { x: number; y: number }>();
 
   // Track maximum X position for fault paths to avoid overlap
@@ -459,21 +466,24 @@ export function autoLayout(
   function layoutNode(
     nodeId: string,
     centerX: number,
-    row: number,
+    currentY: number,
     stopAt?: string,
     visited = new Set<string>()
-  ): void {
-    if (!nodeId || visited.has(nodeId)) return;
-    if (stopAt && nodeId === stopAt) return;
+  ): number {
+    if (!nodeId || visited.has(nodeId)) return currentY;
+    if (stopAt && nodeId === stopAt) return currentY;
 
     const node = nodeMap.get(nodeId);
-    if (!node) return;
+    if (!node) return currentY;
 
     visited.add(nodeId);
 
     // Position this node
-    const y = START_Y + row * ROW_HEIGHT;
-    positions.set(nodeId, { x: centerX, y });
+    positions.set(nodeId, { x: centerX, y: currentY });
+
+    // Calculate Y position for next node based on this node's actual height
+    const nodeHeight = getNodeHeight(nodeId);
+    const nextY = currentY + nodeHeight + V_GAP;
 
     const outs = (outgoing.get(nodeId) || []).filter(
       (e) => e.type !== "fault" && e.type !== "fault-end"
@@ -507,8 +517,8 @@ export function autoLayout(
 
         if (isFaultEnd) {
           // For fault-end: position END node at same Y level for straight horizontal line
-          const srcY = START_Y + row * ROW_HEIGHT;
-          const srcCenterY = srcY + (node?.height || config.node.height) / 2;
+          const srcY = currentY;
+          const srcCenterY = srcY + nodeHeight / 2;
           const endNodeHeight = 40;
           const endNodeY = srcCenterY - endNodeHeight / 2;
 
@@ -524,7 +534,7 @@ export function autoLayout(
           layoutNode(
             edge.target,
             faultX,
-            row + faultIndex,
+            currentY + faultIndex * (DEFAULT_NODE_HEIGHT + V_GAP),
             undefined,
             new Set(visited)
           );
@@ -533,7 +543,7 @@ export function autoLayout(
       }
     });
 
-    if (outs.length === 0) return;
+    if (outs.length === 0) return nextY;
 
     const nodeType = node.type;
 
@@ -607,7 +617,7 @@ export function autoLayout(
           layoutNode(
             edge.target,
             branchCenterX,
-            row + 1,
+            nextY,
             mergePoint,
             new Set(visited)
           );
@@ -628,14 +638,11 @@ export function autoLayout(
       // Position merge point centered between all branches
       if (mergePoint && !visited.has(mergePoint)) {
         const mergeCenterX = (firstBranchCenterX + lastBranchCenterX) / 2;
-        layoutNode(
-          mergePoint,
-          mergeCenterX,
-          row + 1 + maxBranchDepth,
-          stopAt,
-          visited
-        );
+        // Calculate merge point Y based on deepest branch
+        const mergeY = nextY + maxBranchDepth * (DEFAULT_NODE_HEIGHT + V_GAP);
+        layoutNode(mergePoint, mergeCenterX, mergeY, stopAt, visited);
       }
+      return nextY;
     } else if (nodeType === "LOOP") {
       // Handle loop nodes
       const forEachEdge = outs.find((e) => e.type === "loop-next");
@@ -657,7 +664,7 @@ export function autoLayout(
         layoutNode(
           forEachEdge.target,
           loopBodyX,
-          row + 1,
+          nextY,
           nodeId,
           new Set(visited)
         );
@@ -676,39 +683,39 @@ export function autoLayout(
 
       // Position "After Last" below the loop
       if (afterLastEdge && !visited.has(afterLastEdge.target)) {
-        layoutNode(
-          afterLastEdge.target,
-          centerX,
-          row + 1 + loopBodyDepth,
-          stopAt,
-          visited
-        );
+        const afterLoopY =
+          nextY + loopBodyDepth * (DEFAULT_NODE_HEIGHT + V_GAP);
+        layoutNode(afterLastEdge.target, centerX, afterLoopY, stopAt, visited);
       }
+      return nextY;
     } else {
       // Linear node - continue down
+      let lastY = nextY;
       outs.forEach((edge) => {
         if (!visited.has(edge.target)) {
-          layoutNode(edge.target, centerX, row + 1, stopAt, visited);
+          lastY = layoutNode(edge.target, centerX, nextY, stopAt, visited);
         }
       });
+      return lastY;
     }
+    return nextY;
   }
 
   // Start layout from START_NODE
-  layoutNode(startNodeId, START_X, 0);
+  layoutNode(startNodeId, START_X, START_Y);
 
   // Handle any unvisited nodes (orphaned)
-  let maxRow = 0;
+  let maxY = START_Y;
   positions.forEach((p) => {
-    maxRow = Math.max(maxRow, Math.floor((p.y - START_Y) / ROW_HEIGHT));
+    maxY = Math.max(maxY, p.y);
   });
 
   nodes.forEach((n) => {
     if (!positions.has(n.id)) {
-      maxRow++;
+      maxY += DEFAULT_NODE_HEIGHT + V_GAP;
       positions.set(n.id, {
         x: START_X + 400,
-        y: START_Y + maxRow * ROW_HEIGHT,
+        y: maxY,
       });
     }
   });

@@ -96,6 +96,15 @@ function parseStartElement(startEl: Element): StartNodeResult {
     startLabel = "Platform Event-Triggered Flow";
   }
 
+  // Calculate height based on trigger info (for expanded panel)
+  // Base height (56) + trigger panel rows
+  let startHeight = NODE_HEIGHT;
+  const hasTriggerInfo = obj || triggerType || recTrigger;
+  if (hasTriggerInfo) {
+    // Each info row is ~24px, plus padding
+    startHeight = 140; // Fixed height for START with trigger info
+  }
+
   const node: FlowNode = {
     id: "START_NODE",
     type: "START",
@@ -103,7 +112,7 @@ function parseStartElement(startEl: Element): StartNodeResult {
     x: 0,
     y: 0,
     width: NODE_WIDTH,
-    height: NODE_HEIGHT + 24,
+    height: startHeight,
     data: {
       object: obj,
       triggerType,
