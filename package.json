@@ -2,7 +2,7 @@
   "name": "sf-flow-visualizer",
   "displayName": "SF Flow Visualizer",
   "description": "Visualize Salesforce Flow XML files with an interactive diagram",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "publisher": "avidev9",
   "license": "MIT",
   "repository": {
@@ -77,6 +77,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically layout flow nodes when coordinates are missing"
+        },
+        "sf-flow-visualizer.autoOpenFlowViewer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open the Flow Viewer when a *.flow-meta.xml file is active"
         },
         "sf-flow-visualizer.theme": {
           "type": "string",

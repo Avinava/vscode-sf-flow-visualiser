@@ -5,6 +5,12 @@ All notable changes to the SF Flow Visualizer extension will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-12-01
+
+### Fixed
+
+- Scheduled path connectors (Run Immediately / Run Asynchronously) from Start nodes now route horizontally before dropping, eliminating the unnecessary vertical jog that previously appeared between the branch line and target nodes
+
 ## [1.1.2] - 2025-12-01
 
 ### Fixed
@@ -62,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multiple access points (editor title, context menu, command palette)
 - Configuration settings for auto-layout and theme preferences
 
+[1.1.3]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.0.0...v1.1.0

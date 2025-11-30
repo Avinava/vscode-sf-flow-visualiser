@@ -104,22 +104,26 @@ export class TreeLayoutEngine {
 
     // Calculate Y position for next node
     const nodeHeight = this.getNodeHeight(nodeId);
-    const nextY = currentY + nodeHeight + this.config.grid.vGap;
+    // Add extra vertical gap after START nodes with multiple branches (scheduled paths)
+    const outs = this.outgoing.get(nodeId) || [];
+    const isStartWithBranches = node.type === "START" && outs.length > 1;
+    const extraGap = isStartWithBranches ? 30 : 0;
+    const nextY = currentY + nodeHeight + this.config.grid.vGap + extraGap;
 
-    // Get outgoing edges (non-fault)
-    const outs = (this.outgoing.get(nodeId) || []).filter(
+    // Filter outgoing edges to non-fault
+    const nonFaultOuts = outs.filter(
       (e) => e.type !== "fault" && e.type !== "fault-end"
     );
 
     // Handle fault paths
     this.layoutFaultPaths(nodeId, centerX, currentY, nodeHeight, localVisited);
 
-    if (outs.length === 0) return nextY;
+    if (nonFaultOuts.length === 0) return nextY;
 
     // Route to appropriate layout method based on node type
     return this.layoutByNodeType(
       node,
-      outs,
+      nonFaultOuts,
       centerX,
       currentY,
       nextY,

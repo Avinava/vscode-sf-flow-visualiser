@@ -12,6 +12,32 @@ export function activate(context: vscode.ExtensionContext) {
   // Set context for FlowPanel to use for state persistence
   FlowPanel.setContext(context);
 
+  const getAutoOpenSetting = () => {
+    return vscode.workspace
+      .getConfiguration("sf-flow-visualizer")
+      .get<boolean>("autoOpenFlowViewer", true);
+  };
+
+  let autoOpenEnabled = getAutoOpenSetting();
+  FlowPanel.setAutoOpenPreference(autoOpenEnabled);
+
+  const maybeRenderFlowForEditor = (editor?: vscode.TextEditor) => {
+    if (!autoOpenEnabled || !editor) {
+      return;
+    }
+
+    const document = editor.document;
+    if (!isFlowFile(document)) {
+      return;
+    }
+
+    const xmlContent = document.getText();
+    FlowPanel.render(context.extensionUri, xmlContent, document.fileName, {
+      preserveFocus: true,
+      sourceEditor: editor,
+    });
+  };
+
   // Register the show command (from editor)
   const showCommand = vscode.commands.registerCommand(
     "sf-flow-visualizer.show",
@@ -47,8 +73,34 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(showCommand, showFromExplorerCommand);
+
+  if (autoOpenEnabled) {
+    maybeRenderFlowForEditor(vscode.window.activeTextEditor);
+  }
+
+  const editorChangeDisposable = vscode.window.onDidChangeActiveTextEditor(
+    maybeRenderFlowForEditor
+  );
+
+  const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(
+    (event) => {
+      if (event.affectsConfiguration("sf-flow-visualizer.autoOpenFlowViewer")) {
+        autoOpenEnabled = getAutoOpenSetting();
+        FlowPanel.setAutoOpenPreference(autoOpenEnabled);
+        if (autoOpenEnabled) {
+          maybeRenderFlowForEditor(vscode.window.activeTextEditor);
+        }
+      }
+    }
+  );
+
+  context.subscriptions.push(editorChangeDisposable, configChangeDisposable);
 }
 
 export function deactivate() {
   // Cleanup if needed
+}
+
+function isFlowFile(document: vscode.TextDocument): boolean {
+  return document.fileName.endsWith(".flow-meta.xml");
 }
