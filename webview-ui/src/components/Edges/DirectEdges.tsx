@@ -16,6 +16,7 @@ export interface DirectEdgesProps {
   edges: FlowEdge[];
   handledEdges: Set<string>;
   selectedNodeId?: string;
+  animateFlow?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
   edges,
   handledEdges,
   selectedNodeId,
+  animateFlow,
 }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const elements: JSX.Element[] = [];
@@ -151,6 +153,10 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
           strokeDasharray={strokeDasharray}
           markerEnd={markerEnd}
         />
+        {/* Animated overlay when animation is enabled */}
+        {animateFlow && !showAsRed && !showAsBlue && (
+          <path d={path} className="flow-animated-path" />
+        )}
         {edge.label && (
           <EdgeLabel
             x={labelX}

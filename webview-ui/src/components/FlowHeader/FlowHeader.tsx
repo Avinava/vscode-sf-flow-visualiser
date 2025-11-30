@@ -140,12 +140,12 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
   const StatusIcon = statusStyle.icon;
 
   return (
-    <div className="bg-white border-b border-slate-200 shadow-sm px-4 py-2">
+    <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm px-4 py-2">
       <div className="flex items-center justify-between gap-4">
         {/* Left: Flow Info */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <h1 className="text-sm font-semibold text-slate-800 truncate">
+          <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+          <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
             {flowName}
           </h1>
           {/* Status Badge */}
@@ -158,11 +158,11 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
             </span>
           )}
           {/* Process Type & API Version */}
-          <span className="text-xs text-slate-400 hidden sm:inline-flex items-center gap-1">
+          <span className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline-flex items-center gap-1">
             <Code className="w-3 h-3" />
             {processTypeLabel}
             {metadata.apiVersion && (
-              <span className="text-slate-300 ml-1">
+              <span className="text-slate-300 dark:text-slate-600 ml-1">
                 v{metadata.apiVersion}
               </span>
             )}
@@ -171,11 +171,11 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
 
         {/* Right: Trigger Info */}
         {(metadata.object || triggerLabel) && (
-          <div className="flex items-center gap-3 text-xs text-slate-500 flex-shrink-0">
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">
             {metadata.object && (
               <span className="inline-flex items-center gap-1">
-                <Database className="w-3 h-3 text-slate-400" />
-                <span className="font-medium text-slate-600">
+                <Database className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                <span className="font-medium text-slate-600 dark:text-slate-300">
                   {metadata.object}
                 </span>
               </span>

@@ -40,10 +40,10 @@ export const EdgeLabel: React.FC<EdgeLabelProps> = ({
           isFault
             ? "bg-red-500 text-white border-red-600"
             : isGoTo
-              ? "bg-blue-50 text-blue-600 border-blue-200"
+              ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
               : isHighlighted
-                ? "bg-blue-50 text-blue-700 border-blue-300 shadow"
-                : "bg-white text-slate-600 border-slate-200"
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 shadow"
+                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600"
         }`}
       style={{ width: "fit-content", margin: "0 auto", maxWidth: "160px" }}
     >

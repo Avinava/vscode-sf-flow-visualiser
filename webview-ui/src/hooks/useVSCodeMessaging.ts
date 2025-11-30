@@ -6,16 +6,10 @@
  */
 
 import { useEffect, useCallback, useRef } from "react";
+import { getVSCodeApi } from "../utils/vscodeApi";
 
-declare function acquireVsCodeApi(): {
-  postMessage(message: unknown): void;
-  getState(): unknown;
-  setState(state: unknown): void;
-};
-
-// Singleton VS Code API instance
-const vscode =
-  typeof acquireVsCodeApi !== "undefined" ? acquireVsCodeApi() : null;
+// Get shared VS Code API instance
+const vscode = getVSCodeApi();
 
 export interface VSCodeMessage {
   command: string;

@@ -5,8 +5,12 @@
  */
 
 // Canvas components
-export { FlowCanvas, CanvasToolbar } from "./Canvas";
-export type { FlowCanvasProps, CanvasToolbarProps } from "./Canvas";
+export { FlowCanvas, CanvasToolbar, Minimap } from "./Canvas";
+export type {
+  FlowCanvasProps,
+  CanvasToolbarProps,
+  MinimapProps,
+} from "./Canvas";
 
 // Edge components
 export { EdgeRenderer, EdgeMarkers, EdgeLabel } from "./Edges";

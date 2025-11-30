@@ -28,3 +28,5 @@ export type { MergeLineInfo, MergeLinesProps } from "./MergeLines";
 
 export { DirectEdges } from "./DirectEdges";
 export type { DirectEdgesProps } from "./DirectEdges";
+
+export { FlowAnimation } from "./FlowAnimation";

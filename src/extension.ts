@@ -9,6 +9,9 @@ import { FlowPanel } from "./panels/FlowPanel";
 export function activate(context: vscode.ExtensionContext) {
   console.log("SF Flow Visualizer is now active!");
 
+  // Set context for FlowPanel to use for state persistence
+  FlowPanel.setContext(context);
+
   // Register the show command (from editor)
   const showCommand = vscode.commands.registerCommand(
     "sf-flow-visualizer.show",

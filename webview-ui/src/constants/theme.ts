@@ -13,7 +13,9 @@
 
 export const CONNECTOR_COLORS = {
   default: "#94a3b8", // --alc-connector-stroke (slate gray)
+  defaultDark: "#64748b", // Slightly lighter for dark mode
   fault: "#ef4444", // --lwc-colorBorderError (red)
+  faultDark: "#f87171", // Lighter red for dark mode
   highlight: "#60a5fa", // --lwc-paletteBlue30 (light blue)
   goto: "#3b82f6", // Blue for GoTo connectors
   cut: "#3b82f6", // --lwc-brandAccessible

@@ -40,6 +40,7 @@ export interface BranchLinesProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
   selectedNodeId?: string;
+  animateFlow?: boolean;
 }
 
 /**
@@ -137,6 +138,7 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
   nodes,
   edges,
   selectedNodeId,
+  animateFlow,
 }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const branchLines = calculateBranchLines(nodes, edges);
@@ -161,34 +163,60 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
       : CONNECTOR_WIDTHS.default;
 
     // Horizontal branch line
+    const horizontalPath = ConnectorPathService.createHorizontalLine(
+      bl.branchLineY,
+      bl.minX,
+      bl.maxX
+    );
     elements.push(
       <path
         key={`branch-line-${bl.sourceId}`}
-        d={ConnectorPathService.createHorizontalLine(
-          bl.branchLineY,
-          bl.minX,
-          bl.maxX
-        )}
+        d={horizontalPath}
         fill="none"
         stroke={branchStrokeColor}
         strokeWidth={branchStrokeWidth}
       />
     );
+    {
+      /* Animated overlay for horizontal branch line */
+    }
+    if (animateFlow) {
+      elements.push(
+        <path
+          key={`branch-line-anim-${bl.sourceId}`}
+          d={horizontalPath}
+          className="flow-animated-path"
+        />
+      );
+    }
 
     // Vertical stem from source
+    const stemPath = ConnectorPathService.createVerticalLine(
+      srcCenterX,
+      srcBottomY,
+      bl.branchLineY
+    );
     elements.push(
       <path
         key={`branch-stem-${bl.sourceId}`}
-        d={ConnectorPathService.createVerticalLine(
-          srcCenterX,
-          srcBottomY,
-          bl.branchLineY
-        )}
+        d={stemPath}
         fill="none"
         stroke={branchStrokeColor}
         strokeWidth={branchStrokeWidth}
       />
     );
+    {
+      /* Animated overlay for vertical stem */
+    }
+    if (animateFlow) {
+      elements.push(
+        <path
+          key={`branch-stem-anim-${bl.sourceId}`}
+          d={stemPath}
+          className="flow-animated-path"
+        />
+      );
+    }
 
     // Branch drops to targets
     bl.branches.forEach(({ edge, branchX, targetX, targetY }) => {
@@ -219,6 +247,8 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
             strokeWidth={dropStrokeWidth}
             markerEnd={dropMarker}
           />
+          {/* Animated overlay for branch drop */}
+          {animateFlow && <path d={path} className="flow-animated-path" />}
           {edge.label && (
             <EdgeLabel
               x={branchX}

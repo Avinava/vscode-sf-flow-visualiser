@@ -6,6 +6,7 @@
  */
 
 import React, { useRef, type ReactNode } from "react";
+import { useTheme } from "../../context";
 
 export interface FlowCanvasProps {
   /** Pan offset */
@@ -28,6 +29,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   children,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const { isDark } = useTheme();
 
   return (
     <div
@@ -36,13 +38,12 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       onMouseDown={onMouseDown}
       onWheel={onWheel}
       style={{
-        backgroundImage:
-          "radial-gradient(circle, #d1d5db 1px, transparent 1px)",
+        backgroundImage: `radial-gradient(circle, ${isDark ? "#374151" : "#d1d5db"} 1px, transparent 1px)`,
         backgroundSize: "16px 16px",
         backgroundPosition: `${pan.x}px ${pan.y}px`,
         position: "relative",
         overflow: "hidden",
-        backgroundColor: "#f8fafc",
+        backgroundColor: isDark ? "#0f172a" : "#f8fafc",
       }}
     >
       <div

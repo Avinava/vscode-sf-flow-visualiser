@@ -50,10 +50,12 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-slate-800 leading-tight">
+          <div className="font-semibold text-slate-800 dark:text-slate-100 leading-tight">
             {node.label}
           </div>
-          <div className="text-xs text-slate-500">{config.label}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            {config.label}
+          </div>
         </div>
       </div>
 
@@ -61,10 +63,10 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
       <div className="space-y-3">
         {/* API Name */}
         <div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+          <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
             API Name
           </div>
-          <div className="font-mono text-xs bg-slate-100 px-2 py-1.5 rounded border border-slate-200 break-all">
+          <div className="font-mono text-xs bg-slate-100 dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 break-all">
             {node.id}
           </div>
         </div>
@@ -72,10 +74,10 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
         {/* Object (if present) */}
         {typeof node.data.object === "string" && node.data.object && (
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+            <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
               Object
             </div>
-            <div className="text-xs bg-slate-100 px-2 py-1.5 rounded border border-slate-200">
+            <div className="text-xs bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700">
               {node.data.object}
             </div>
           </div>
@@ -83,7 +85,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
 
         {/* Connections */}
         <div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+          <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
             Connections
           </div>
           <div className="space-y-1">
@@ -94,14 +96,14 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
                 className={`text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border
                   ${
                     e.type === "fault"
-                      ? "bg-red-50 text-red-700 border-red-200"
-                      : "bg-slate-50 text-slate-600 border-slate-200"
+                      ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
+                      : "bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                   }`}
               >
                 <ChevronRight size={12} />
                 <span className="truncate flex-1">{e.target}</span>
                 {e.label && (
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
                     ({e.label})
                   </span>
                 )}
@@ -112,7 +114,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
             {incomingEdges.map((e) => (
               <div
                 key={e.id}
-                className="text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border bg-slate-50 text-slate-600 border-slate-200"
+                className="text-xs flex items-center gap-1.5 px-2 py-1.5 rounded border bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
               >
                 <ChevronLeft size={12} />
                 <span className="truncate">{e.source}</span>
@@ -124,7 +126,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
         {/* XML Preview (if available) */}
         {typeof node.data.xmlElement === "string" && node.data.xmlElement && (
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+            <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
               XML
             </div>
             <pre className="text-[10px] bg-slate-900 text-green-400 p-3 rounded overflow-auto max-h-40 font-mono">

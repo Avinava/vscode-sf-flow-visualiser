@@ -86,18 +86,20 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             className={`
               w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
               shadow transition-all
-              ${isSelected ? "ring-3 ring-red-200" : "hover:shadow-md"}
+              ${isSelected ? "ring-3 ring-red-200 dark:ring-red-900" : "hover:shadow-md"}
             `}
           >
             <config.icon size={12} className="text-white" fill="white" />
           </div>
 
           {/* Label */}
-          <div className="text-xs font-medium text-slate-500 ml-2">End</div>
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-2">
+            End
+          </div>
 
           {/* Incoming GoTo indicator */}
           {incomingGoToCount > 0 && (
-            <div className="text-[10px] text-blue-500 italic ml-2">
+            <div className="text-[10px] text-blue-500 dark:text-blue-400 italic ml-2">
               ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
             </div>
           )}
@@ -116,25 +118,27 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         }}
       >
         {/* Top connector dot */}
-        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm mb-2" />
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm mb-2" />
 
         {/* End circle */}
         <div
           className={`
             w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
             shadow transition-all
-            ${isSelected ? "ring-3 ring-red-200" : "hover:shadow-md"}
+            ${isSelected ? "ring-3 ring-red-200 dark:ring-red-900" : "hover:shadow-md"}
           `}
         >
           <config.icon size={12} className="text-white" fill="white" />
         </div>
 
         {/* Label */}
-        <div className="text-xs font-medium text-slate-500 mt-1.5">End</div>
+        <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1.5">
+          End
+        </div>
 
         {/* Incoming GoTo indicator */}
         {incomingGoToCount > 0 && (
-          <div className="text-[10px] text-blue-500 italic mt-0.5">
+          <div className="text-[10px] text-blue-500 dark:text-blue-400 italic mt-0.5">
             ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
           </div>
         )}
@@ -163,10 +167,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
             ${
               isSelected
-                ? "border-blue-500 shadow-lg ring-2 ring-blue-200"
-                : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+                ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
             }
-            bg-white
+            bg-white dark:bg-slate-800
           `}
         >
           {/* Main node header - Salesforce style with circular icon */}
@@ -181,30 +185,36 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             {/* Title and subtitle */}
             <div className="flex-1 min-w-0">
               <div
-                className="text-sm font-semibold text-slate-800 truncate"
+                className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
                 title={node.label}
               >
                 {node.label}
               </div>
-              <div className="text-xs text-slate-500">Start</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Start
+              </div>
             </div>
           </div>
 
           {/* Trigger details panel - Salesforce style with inline labels */}
           {showExpansion && (
-            <div className="border-t border-slate-200 px-3 py-2 text-[13px] space-y-0.5">
+            <div className="border-t border-slate-200 dark:border-slate-700 px-3 py-2 text-[13px] space-y-0.5">
               {hasObject && (
                 <div className="flex items-baseline">
-                  <span className="text-slate-500 mr-1">Object:</span>
-                  <span className="font-medium text-slate-800">
+                  <span className="text-slate-500 dark:text-slate-400 mr-1">
+                    Object:
+                  </span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {node.data.object}
                   </span>
                 </div>
               )}
               {node.data.recordTriggerType && (
                 <div className="flex items-baseline">
-                  <span className="text-slate-500 mr-1">Trigger:</span>
-                  <span className="font-medium text-slate-800">
+                  <span className="text-slate-500 dark:text-slate-400 mr-1">
+                    Trigger:
+                  </span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {getRecordTriggerLabel(
                       node.data.recordTriggerType as string
                     )}
@@ -213,8 +223,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
               )}
               {node.data.triggerType && (
                 <div className="flex items-baseline">
-                  <span className="text-slate-500 mr-1">Optimize for:</span>
-                  <span className="font-medium text-slate-800 truncate">
+                  <span className="text-slate-500 dark:text-slate-400 mr-1">
+                    Optimize for:
+                  </span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
                     {getOptimizeForLabel(node.data.triggerType as string)}
                   </span>
                 </div>
@@ -225,7 +237,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
 
         {/* Bottom connector dot */}
         <div className="flex justify-center -mt-1 relative z-10">
-          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm" />
         </div>
       </div>
     );
@@ -245,13 +257,13 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       <div className="flex justify-center -mb-1 relative z-10">
         {isGoToTarget && (
           <div
-            className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[9px] font-medium text-blue-600 bg-blue-50 border border-blue-200 shadow-sm whitespace-nowrap"
+            className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[9px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 shadow-sm whitespace-nowrap"
             title={`${incomingGoToCount} incoming GoTo connection${incomingGoToCount > 1 ? "s" : ""}`}
           >
             ↵ {incomingGoToCount} connection{incomingGoToCount > 1 ? "s" : ""}
           </div>
         )}
-        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm" />
       </div>
 
       {/* Node card */}
@@ -260,10 +272,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
           ${
             isSelected
-              ? "border-blue-500 shadow-lg ring-2 ring-blue-200"
-              : "border-slate-200 hover:border-slate-300 hover:shadow-md"
+              ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
           }
-          bg-white
+          bg-white dark:bg-slate-800
         `}
       >
         <div className="flex items-stretch">
@@ -291,11 +303,11 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
 
           {/* Content */}
           <div className="flex-1 px-3 py-2 min-w-0">
-            <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
               {config.label}
             </div>
             <div
-              className="text-sm font-semibold text-slate-800 truncate"
+              className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
               title={node.label}
             >
               {node.label}
@@ -306,7 +318,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
 
       {/* Bottom connector dot */}
       <div className="flex justify-center -mt-1 relative z-10">
-        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm" />
       </div>
     </div>
   );

@@ -21,6 +21,8 @@ import {
   getHandledMergeEdges,
 } from "./MergeLines";
 import { DirectEdges } from "./DirectEdges";
+import { FlowAnimation } from "./FlowAnimation";
+import { useTheme } from "../../context";
 
 export interface EdgeRendererProps {
   nodes: FlowNode[];
@@ -36,6 +38,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
   edges,
   selectedNodeId,
 }) => {
+  const { animateFlow } = useTheme();
+
   // Calculate which edges are handled by branch lines
   const branchLines = useMemo(
     () => calculateBranchLines(nodes, edges),
@@ -68,22 +72,26 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
   return (
     <svg className="absolute top-0 left-0 w-1 h-1 overflow-visible pointer-events-none">
       <EdgeMarkers />
+      {animateFlow && <FlowAnimation />}
       <BranchLines
         nodes={nodes}
         edges={edges}
         selectedNodeId={selectedNodeId}
+        animateFlow={animateFlow}
       />
       <MergeLines
         nodes={nodes}
         edges={edges}
         handledEdges={handledByBranches}
         selectedNodeId={selectedNodeId}
+        animateFlow={animateFlow}
       />
       <DirectEdges
         nodes={nodes}
         edges={edges}
         handledEdges={allHandledEdges}
         selectedNodeId={selectedNodeId}
+        animateFlow={animateFlow}
       />
     </svg>
   );

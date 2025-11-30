@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
-import { FlowCanvas, CanvasToolbar, Sidebar } from "./components";
+import { FlowCanvas, CanvasToolbar, Sidebar, Minimap } from "./components";
 
 // Import custom hooks
 import {
@@ -12,13 +12,22 @@ import {
   useNodeSelection,
 } from "./hooks";
 
+// Import context
+import { ThemeProvider, useTheme } from "./context";
+
+// Import types
+import type { BoundingBox } from "./hooks/useCanvasInteraction";
+
 // ============================================================================
-// MAIN APP COMPONENT
-// Clean orchestration layer using custom hooks and modular components
+// MAIN APP CONTENT
+// Separated to use theme context
 // ============================================================================
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   // Sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Theme context
+  const { toggleTheme, isDark, toggleAnimation } = useTheme();
 
   // Flow parsing and layout hook
   const {
@@ -30,9 +39,52 @@ const App: React.FC = () => {
     fileName,
   } = useFlowParser();
 
-  // Canvas interaction hook
-  const { state, onMouseDown, onWheel, zoomIn, zoomOut, resetView } =
-    useCanvasInteraction();
+  // Calculate node bounds for fit-to-view
+  const getNodeBounds = useCallback((): BoundingBox | null => {
+    if (parsedData.nodes.length === 0) return null;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const node of parsedData.nodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + node.width);
+      maxY = Math.max(maxY, node.y + node.height);
+    }
+
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }, [parsedData.nodes]);
+
+  // Canvas interaction hook with theme toggle callback
+  const {
+    state,
+    onMouseDown,
+    onWheel,
+    zoomIn,
+    zoomOut,
+    resetView,
+    fitToView,
+    setNodeBoundsGetter,
+    setPan,
+  } = useCanvasInteraction({
+    onToggleTheme: toggleTheme,
+    onToggleAnimation: toggleAnimation,
+  });
+
+  // Set up node bounds getter when nodes change
+  useEffect(() => {
+    setNodeBoundsGetter(getNodeBounds);
+  }, [setNodeBoundsGetter, getNodeBounds]);
 
   // Node selection hook
   const { selectedNode, selectNode, clearSelection } = useNodeSelection();
@@ -51,7 +103,10 @@ const App: React.FC = () => {
   useVSCodeMessaging({ onLoadXml: handleLoadXml });
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-100 overflow-hidden font-sans text-sm">
+    <div
+      className={`flex flex-col h-screen w-full overflow-hidden font-sans text-sm transition-colors duration-200
+        ${isDark ? "bg-slate-900" : "bg-slate-100"}`}
+    >
       {/* FLOW HEADER */}
       <FlowHeader metadata={parsedData.metadata} fileName={fileName} />
 
@@ -76,6 +131,7 @@ const App: React.FC = () => {
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onResetView={resetView}
+            onFitToView={fitToView}
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
           />
 
@@ -105,9 +161,28 @@ const App: React.FC = () => {
               />
             ))}
           </FlowCanvas>
+
+          {/* Minimap */}
+          <Minimap
+            nodes={parsedData.nodes}
+            pan={state.pan}
+            scale={state.scale}
+            onPanChange={setPan}
+          />
         </div>
       </div>
     </div>
+  );
+};
+
+// ============================================================================
+// MAIN APP COMPONENT WITH PROVIDERS
+// ============================================================================
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 };
 

@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Sidebar panel */}
       <div
-        className="bg-white border-r border-slate-200 flex flex-col shadow-lg transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
+        className="bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col shadow-lg transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0"
         style={{ width: isOpen ? 320 : 0 }}
       >
         {/* Stats */}
@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {selectedNode ? (
             <NodeDetails node={selectedNode} edges={edges} />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6">
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 p-6">
               <Info className="w-12 h-12 mb-3 opacity-20" />
               <p className="text-center text-xs">
                 Select a node to view details
@@ -55,13 +55,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Toggle button */}
       <button
         onClick={onToggle}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white border border-slate-200 rounded-r-lg shadow-md p-1.5 hover:bg-slate-50 transition-all"
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-r-lg shadow-md p-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
         style={{ left: isOpen ? 308 : 0, marginTop: "40px" }}
       >
         {isOpen ? (
-          <ChevronLeftCircle size={20} className="text-slate-500" />
+          <ChevronLeftCircle
+            size={20}
+            className="text-slate-500 dark:text-slate-400"
+          />
         ) : (
-          <ChevronRightCircle size={20} className="text-slate-500" />
+          <ChevronRightCircle
+            size={20}
+            className="text-slate-500 dark:text-slate-400"
+          />
         )}
       </button>
     </>

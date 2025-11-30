@@ -31,6 +31,7 @@ export interface MergeLinesProps {
   edges: FlowEdge[];
   handledEdges: Set<string>;
   selectedNodeId?: string;
+  animateFlow?: boolean;
 }
 
 /**
@@ -128,6 +129,7 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
   edges,
   handledEdges,
   selectedNodeId,
+  animateFlow,
 }) => {
   const mergeLines = calculateMergeLines(nodes, edges, handledEdges);
   const elements: JSX.Element[] = [];
@@ -145,35 +147,61 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
       : CONNECTOR_WIDTHS.default;
 
     // Horizontal merge line
+    const horizontalPath = ConnectorPathService.createHorizontalLine(
+      ml.mergeLineY,
+      ml.minX,
+      ml.maxX
+    );
     elements.push(
       <path
         key={`merge-line-${ml.targetId}`}
-        d={ConnectorPathService.createHorizontalLine(
-          ml.mergeLineY,
-          ml.minX,
-          ml.maxX
-        )}
+        d={horizontalPath}
         fill="none"
         stroke={mergeStrokeColor}
         strokeWidth={mergeStrokeWidth}
       />
     );
+    {
+      /* Animated overlay for horizontal merge line */
+    }
+    if (animateFlow) {
+      elements.push(
+        <path
+          key={`merge-line-anim-${ml.targetId}`}
+          d={horizontalPath}
+          className="flow-animated-path"
+        />
+      );
+    }
 
     // Vertical drop to target
+    const stemPath = ConnectorPathService.createVerticalLine(
+      ml.centerX,
+      ml.mergeLineY,
+      ml.targetY
+    );
     elements.push(
       <path
         key={`merge-stem-${ml.targetId}`}
-        d={ConnectorPathService.createVerticalLine(
-          ml.centerX,
-          ml.mergeLineY,
-          ml.targetY
-        )}
+        d={stemPath}
         fill="none"
         stroke={mergeStrokeColor}
         strokeWidth={mergeStrokeWidth}
         markerEnd={mergeHighlighted ? "url(#arrow-highlight)" : "url(#arrow)"}
       />
     );
+    {
+      /* Animated overlay for vertical drop */
+    }
+    if (animateFlow) {
+      elements.push(
+        <path
+          key={`merge-stem-anim-${ml.targetId}`}
+          d={stemPath}
+          className="flow-animated-path"
+        />
+      );
+    }
 
     // Source connections to merge line
     ml.sources.forEach(({ edge, x, y }) => {
@@ -207,6 +235,18 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
           strokeWidth={sourceStrokeWidth}
         />
       );
+      {
+        /* Animated overlay for source connection */
+      }
+      if (animateFlow) {
+        elements.push(
+          <path
+            key={`merge-drop-anim-${edge.id}`}
+            d={path}
+            className="flow-animated-path"
+          />
+        );
+      }
     });
   });
 
