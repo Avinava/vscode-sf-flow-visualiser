@@ -18,13 +18,13 @@ import {
   Zap,
   Code,
 } from "lucide-react";
-import type { FlowMetadata } from "../types";
+import type { FlowMetadata } from "../../types";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface FlowHeaderProps {
+export interface FlowHeaderProps {
   metadata: FlowMetadata;
   fileName?: string;
 }

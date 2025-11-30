@@ -1,6 +1,32 @@
 /**
  * Components module exports
+ *
+ * Re-exports all components from their respective sub-folders.
  */
-export { EdgeRenderer, EdgeMarkers } from "./EdgeRenderer";
+
+// Canvas components
+export { FlowCanvas, CanvasToolbar } from "./Canvas";
+export type { FlowCanvasProps, CanvasToolbarProps } from "./Canvas";
+
+// Edge components
+export { EdgeRenderer, EdgeMarkers, EdgeLabel } from "./Edges";
+export { BranchLines, MergeLines, DirectEdges } from "./Edges";
+export type {
+  EdgeRendererProps,
+  EdgeLabelProps,
+  BranchLinesProps,
+  MergeLinesProps,
+  DirectEdgesProps,
+} from "./Edges";
+
+// Flow node components
 export { FlowNodeComponent } from "./FlowNode";
+export type { FlowNodeProps } from "./FlowNode";
+
+// Sidebar components
+export { Sidebar, NodeDetails, FlowStats } from "./Sidebar";
+export type { SidebarProps, NodeDetailsProps, FlowStatsProps } from "./Sidebar";
+
+// Header component
 export { FlowHeader } from "./FlowHeader";
+export type { FlowHeaderProps } from "./FlowHeader";

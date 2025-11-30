@@ -11,14 +11,14 @@
  */
 
 import React from "react";
-import type { FlowNode as FlowNodeType, NodeTypeConfig } from "../types";
-import { NODE_CONFIG } from "../constants";
+import type { FlowNode as FlowNodeType, NodeTypeConfig } from "../../types";
+import { NODE_CONFIG } from "../../constants";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface FlowNodeProps {
+export interface FlowNodeProps {
   node: FlowNodeType;
   isSelected: boolean;
   isGoToTarget?: boolean;
@@ -311,9 +311,5 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
     </div>
   );
 };
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 export default FlowNodeComponent;
