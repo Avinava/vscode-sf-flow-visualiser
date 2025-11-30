@@ -215,6 +215,7 @@ Built with modern web technologies:
 - [Vite](https://vitejs.dev/) - Lightning-fast build tool
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first styling
 - [Lucide Icons](https://lucide.dev/) - Beautiful icon set
+- [GitHub Copilot](https://github.com/features/copilot) - AI pair programmer that helped build and polish this extension
 
 ---
 
