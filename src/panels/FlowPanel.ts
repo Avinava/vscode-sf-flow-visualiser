@@ -12,6 +12,12 @@ export class FlowPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
+  private static _context: vscode.ExtensionContext | undefined;
+
+  public static setContext(context: vscode.ExtensionContext) {
+    FlowPanel._context = context;
+  }
+
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
@@ -56,6 +62,26 @@ export class FlowPanel {
               payload: xmlContent,
               fileName: path.basename(fileName),
             });
+            // Also send persisted state
+            if (FlowPanel._context) {
+              const themeMode =
+                FlowPanel._context.globalState.get<string>("themeMode");
+              const animateFlow =
+                FlowPanel._context.globalState.get<boolean>("animateFlow");
+              if (themeMode !== undefined || animateFlow !== undefined) {
+                this._panel.webview.postMessage({
+                  command: "restoreState",
+                  payload: { themeMode, animateFlow },
+                });
+              }
+            }
+            return;
+          case "saveState":
+            // Persist state to globalState
+            if (FlowPanel._context && message.payload) {
+              const { key, value } = message.payload;
+              FlowPanel._context.globalState.update(key, value);
+            }
             return;
         }
       },
@@ -77,6 +103,8 @@ export class FlowPanel {
     if (FlowPanel.currentPanel) {
       // If panel exists, update it with new content
       FlowPanel.currentPanel._panel.reveal(vscode.ViewColumn.Beside);
+      // Update panel title to reflect the new flow
+      FlowPanel.currentPanel._panel.title = `Flow: ${flowName}`;
       FlowPanel.currentPanel._panel.webview.postMessage({
         command: "loadXml",
         payload: xmlContent,

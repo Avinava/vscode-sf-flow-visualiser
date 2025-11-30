@@ -5,6 +5,14 @@ All notable changes to the SF Flow Visualizer extension will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-11-30
+
+### Improved
+
+- **Better Defaults**: Light theme and flow animation are now enabled by default for a better out-of-the-box experience
+- User preferences for theme and animation are now persisted and restored across sessions
+- State persistence now correctly restores user preferences on initial load without flash of default values
+
 ## [1.1.0] - 2025-11-30
 
 ### Changed
@@ -46,5 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multiple access points (editor title, context menu, command palette)
 - Configuration settings for auto-layout and theme preferences
 
+[1.1.1]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Avinava/vscode-sf-flow-visualiser/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Avinava/vscode-sf-flow-visualiser/releases/tag/v1.0.0
