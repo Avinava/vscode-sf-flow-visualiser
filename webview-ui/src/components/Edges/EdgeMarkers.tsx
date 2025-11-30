@@ -37,6 +37,25 @@ export const EdgeMarkers: React.FC = () => (
       <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.fault} />
     </marker>
 
+    {/* Subtle animated fault arrow - gentle opacity pulse */}
+    <marker
+      id="arrow-red-animated"
+      markerWidth="6"
+      markerHeight="5"
+      refX="5"
+      refY="2.5"
+      orient="auto"
+    >
+      <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.fault}>
+        <animate
+          attributeName="opacity"
+          values="0.7;1;0.7"
+          dur="2s"
+          repeatCount="indefinite"
+        />
+      </polygon>
+    </marker>
+
     {/* GoTo arrow (blue) */}
     <marker
       id="arrow-blue"

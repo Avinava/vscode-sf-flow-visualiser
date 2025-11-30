@@ -28,6 +28,10 @@ export interface OrthogonalPathOptions extends PathOptions {
   bendStrategy?: "near-target" | "near-source" | "midpoint";
 }
 
+export interface BranchDropOptions extends PathOptions {
+  dropStrategy?: "auto" | "horizontal-first" | "vertical-first";
+}
+
 export interface FaultPathOptions extends PathOptions {
   faultIndex?: number;
 }
@@ -122,15 +126,34 @@ export class ConnectorPathService {
   ): string {
     const { cornerRadius = DEFAULT_CORNER_RADIUS, faultIndex = 0 } = options;
 
-    // Check if nearly horizontal
-    if (Math.abs(tgt.y - src.y) < 15) {
+    // Check if nearly horizontal (allow small offsets to stay straight)
+    if (Math.abs(tgt.y - src.y) < 25) {
       return this.createStraightPath(src, tgt);
     }
 
     // Stagger horizontal offset for multiple fault paths
     const baseOffset = FAULT_HORIZONTAL_OFFSET;
     const staggerOffset = faultIndex * 25;
-    const horizontalEndX = src.x + baseOffset + staggerOffset;
+    const safetyMargin = 40; // keep some room before reaching the target column
+    const availableSpace = tgt.x - src.x;
+
+    // Dynamically expand the horizontal offset based on the space between
+    // source and target so fault lanes don't crowd the main path.
+    const desiredOffset = baseOffset + staggerOffset;
+    let horizontalOffset = desiredOffset;
+    if (availableSpace > desiredOffset + safetyMargin) {
+      const extraSpace = availableSpace - desiredOffset - safetyMargin;
+      const adaptiveOffset = desiredOffset + Math.min(extraSpace * 0.75, 200);
+      horizontalOffset = Math.min(
+        adaptiveOffset,
+        availableSpace - safetyMargin
+      );
+    }
+
+    const horizontalEndX = Math.max(
+      src.x + baseOffset * 0.5,
+      Math.min(src.x + horizontalOffset, tgt.x - safetyMargin)
+    );
 
     if (tgt.y > src.y) {
       // Target is below
@@ -154,6 +177,14 @@ export class ConnectorPathService {
   /**
    * Create a loop-back connector path (goes left and up)
    *
+   * This creates a smooth curved path that wraps around the left side,
+   * similar to Salesforce's loop visualization. The path goes:
+   * 1. Down from source
+   * 2. Curves left
+   * 3. Goes up along the left side
+   * 4. Curves right
+   * 5. Connects to the target from below
+   *
    * @param src - Source point (bottom of source node)
    * @param tgt - Target point (top of loop node)
    * @param options - Path options
@@ -163,20 +194,31 @@ export class ConnectorPathService {
     tgt: Point,
     options: PathOptions = {}
   ): string {
-    const { cornerRadius = 15 } = options;
+    const { cornerRadius = 20 } = options;
 
-    const offsetX = Math.min(50, Math.abs(src.x - tgt.x) / 2 + 30);
-    const leftX = Math.min(src.x, tgt.x) - offsetX;
+    // Calculate the leftmost X position for the loop-back
+    // Use a comfortable offset from the leftmost point (source or target)
+    const minX = Math.min(src.x, tgt.x);
+    const offsetX = Math.max(60, Math.abs(src.x - tgt.x) / 2 + 50);
+    const leftX = minX - offsetX;
 
-    return `M ${src.x} ${src.y} 
-            L ${src.x} ${src.y + 20} 
-            Q ${src.x} ${src.y + 20 + cornerRadius}, ${src.x - cornerRadius} ${src.y + 20 + cornerRadius}
-            L ${leftX + cornerRadius} ${src.y + 20 + cornerRadius}
-            Q ${leftX} ${src.y + 20 + cornerRadius}, ${leftX} ${src.y + 20}
-            L ${leftX} ${tgt.y + 20}
-            Q ${leftX} ${tgt.y - cornerRadius}, ${leftX + cornerRadius} ${tgt.y - cornerRadius}
-            L ${tgt.x - cornerRadius} ${tgt.y - cornerRadius}
-            Q ${tgt.x} ${tgt.y - cornerRadius}, ${tgt.x} ${tgt.y}`;
+    // Vertical positions for the turns
+    const bottomY = src.y + 30; // Drop down a bit from source
+    const topY = tgt.y - 15; // Come up to just above target
+
+    // Create a smooth path with larger corner radii for elegance
+    const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, offsetX / 2);
+
+    return `M ${src.x} ${src.y}
+            L ${src.x} ${bottomY - r}
+            Q ${src.x} ${bottomY}, ${src.x - r} ${bottomY}
+            L ${leftX + r} ${bottomY}
+            Q ${leftX} ${bottomY}, ${leftX} ${bottomY - r}
+            L ${leftX} ${topY + r}
+            Q ${leftX} ${topY}, ${leftX + r} ${topY}
+            L ${tgt.x - r} ${topY}
+            Q ${tgt.x} ${topY}, ${tgt.x} ${topY + r}
+            L ${tgt.x} ${tgt.y}`;
   }
 
   /**
@@ -205,17 +247,34 @@ export class ConnectorPathService {
     branchX: number,
     branchY: number,
     tgt: Point,
-    options: PathOptions = {}
+    options: BranchDropOptions = {}
   ): string {
-    const { cornerRadius = DEFAULT_CORNER_RADIUS } = options;
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, dropStrategy = "auto" } =
+      options;
     const dx = tgt.x - branchX;
+    const dy = tgt.y - branchY;
 
-    // Straight vertical drop if aligned
+    // Straight vertical drop if aligned horizontally
     if (Math.abs(dx) < 5) {
       return `M ${branchX} ${branchY} L ${tgt.x} ${tgt.y}`;
     }
 
-    // Orthogonal routing with corners
+    const resolvedStrategy =
+      dropStrategy === "auto" ? "vertical-first" : dropStrategy;
+
+    if (resolvedStrategy === "horizontal-first") {
+      const horizontalSign = dx > 0 ? 1 : -1;
+      const verticalSign = dy >= 0 ? 1 : -1;
+      const horizontalCornerX = tgt.x - horizontalSign * cornerRadius;
+      const verticalCornerY = branchY + verticalSign * cornerRadius;
+
+      return `M ${branchX} ${branchY}
+              L ${horizontalCornerX} ${branchY}
+              Q ${tgt.x} ${branchY}, ${tgt.x} ${verticalCornerY}
+              L ${tgt.x} ${tgt.y}`;
+    }
+
+    // Default vertical-first orthogonal routing
     return this.createOrthogonalPath({ x: branchX, y: branchY }, tgt, {
       cornerRadius,
     });

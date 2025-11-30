@@ -11,6 +11,7 @@
  */
 
 import React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { FlowNode as FlowNodeType, NodeTypeConfig } from "../../types";
 import { NODE_CONFIG } from "../../constants";
 
@@ -23,7 +24,10 @@ export interface FlowNodeProps {
   isSelected: boolean;
   isGoToTarget?: boolean;
   incomingGoToCount?: number;
+  isCollapsed?: boolean;
+  isBranchingNode?: boolean;
   onSelect: (node: FlowNodeType) => void;
+  onToggleCollapse?: (nodeId: string) => void;
 }
 
 // ============================================================================
@@ -62,7 +66,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   isSelected,
   isGoToTarget = false,
   incomingGoToCount = 0,
+  isCollapsed = false,
+  isBranchingNode = false,
   onSelect,
+  onToggleCollapse,
 }) => {
   const config: NodeTypeConfig = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
 
@@ -273,9 +280,11 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           ${
             isSelected
               ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
-              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+              : isCollapsed
+                ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
+                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
           }
-          bg-white dark:bg-slate-800
+          ${isCollapsed ? "bg-amber-50 dark:bg-amber-950/30" : "bg-white dark:bg-slate-800"}
         `}
       >
         <div className="flex items-stretch">
@@ -313,6 +322,30 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
               {node.label}
             </div>
           </div>
+
+          {/* Collapse button for branching nodes */}
+          {isBranchingNode && onToggleCollapse && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse(node.id);
+              }}
+              className="px-2 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
+              title={isCollapsed ? "Expand branches" : "Collapse branches"}
+            >
+              {isCollapsed ? (
+                <ChevronRight
+                  size={16}
+                  className="text-slate-400 dark:text-slate-500"
+                />
+              ) : (
+                <ChevronDown
+                  size={16}
+                  className="text-slate-400 dark:text-slate-500"
+                />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -320,6 +353,13 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       <div className="flex justify-center -mt-1 relative z-10">
         <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm" />
       </div>
+
+      {/* Collapsed indicator badge */}
+      {isCollapsed && (
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-[10px] font-semibold text-amber-700 dark:text-amber-300 rounded-full whitespace-nowrap shadow-sm border border-amber-300 dark:border-amber-700">
+          ▶ Collapsed
+        </div>
+      )}
     </div>
   );
 };
