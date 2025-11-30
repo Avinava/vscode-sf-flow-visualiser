@@ -15,38 +15,159 @@
  * - Loop nodes add 1 complexity (for the loop back)
  * - Wait nodes with multiple paths add complexity
  * - Fault handling adds complexity
- *
- * Complexity Ratings:
- * - 1-10: Simple, low risk
- * - 11-20: More complex, moderate risk
- * - 21-50: Complex, high risk
- * - 50+: Very complex, very high risk - consider refactoring
  */
 
-import type { FlowNode, FlowEdge, NodeType } from "../types";
+import type { FlowNode, FlowEdge } from "../types";
 
+// ============================================================================
+// CONSTANTS & REFERENCE DATA
+// ============================================================================
+
+/** Valid complexity rating values */
+export type ComplexityRating =
+  | "simple"
+  | "moderate"
+  | "complex"
+  | "high-risk"
+  | "very-complex";
+
+/**
+ * Reference ranges for complexity scores
+ * Single source of truth for all complexity thresholds and display data
+ */
+export const COMPLEXITY_RANGES: readonly ComplexityRangeConfig[] = [
+  {
+    min: 1,
+    max: 5,
+    range: "1-5",
+    label: "Simple",
+    rating: "simple",
+    color: "bg-green-500",
+    bgClass:
+      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    hexColor: "#22c55e",
+    description: "Easy to understand and maintain",
+    testability: "Minimal test cases needed",
+  },
+  {
+    min: 6,
+    max: 10,
+    range: "6-10",
+    label: "Moderate",
+    rating: "moderate",
+    color: "bg-blue-500",
+    bgClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    hexColor: "#3b82f6",
+    description: "Reasonable complexity, still maintainable",
+    testability: "Moderate test coverage recommended",
+  },
+  {
+    min: 11,
+    max: 20,
+    range: "11-20",
+    label: "Complex",
+    rating: "complex",
+    color: "bg-amber-500",
+    bgClass:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    hexColor: "#f59e0b",
+    description: "Consider breaking into smaller flows",
+    testability: "Thorough testing required",
+  },
+  {
+    min: 21,
+    max: 50,
+    range: "21-50",
+    label: "High Risk",
+    rating: "high-risk",
+    color: "bg-orange-500",
+    bgClass:
+      "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    hexColor: "#f97316",
+    description: "Difficult to test and maintain",
+    testability: "Many test paths needed",
+  },
+  {
+    min: 51,
+    max: Infinity,
+    range: "50+",
+    label: "Very High",
+    rating: "very-complex",
+    color: "bg-red-500",
+    bgClass: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    hexColor: "#ef4444",
+    description: "Should be refactored immediately",
+    testability: "Untestable without refactoring",
+  },
+] as const;
+
+/**
+ * Information about cyclomatic complexity for educational display
+ */
+export const COMPLEXITY_INFO = {
+  title: "Cyclomatic Complexity (CC)",
+  formula: "CC = E − N + 2P",
+  formulaExplanation: "E = edges, N = nodes, P = connected components",
+  whatItMeasures:
+    "The number of linearly independent paths through a program. Each decision point (if/else, loop, wait) adds a new path.",
+  whyItMatters:
+    "Lower scores mean easier testing and maintenance. Each independent path requires its own test case for full coverage.",
+  salesforceFactors: [
+    { type: "Decision", impact: "+1 per additional outcome" },
+    { type: "Loop", impact: "+1 for the loop back edge" },
+    { type: "Wait", impact: "+1 per scheduled path" },
+    { type: "Fault Handler", impact: "+1 per fault path" },
+  ],
+} as const;
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/** Configuration for a complexity range */
+export interface ComplexityRangeConfig {
+  /** Minimum score (inclusive) */
+  min: number;
+  /** Maximum score (inclusive) */
+  max: number;
+  /** Display range string */
+  range: string;
+  /** Human-readable label */
+  label: string;
+  /** Rating key */
+  rating: ComplexityRating;
+  /** Tailwind background color class */
+  color: string;
+  /** Tailwind badge classes (bg + text for light/dark) */
+  bgClass: string;
+  /** Hex color for charts/custom rendering */
+  hexColor: string;
+  /** Short description */
+  description: string;
+  /** Testability note */
+  testability: string;
+}
+
+/** Breakdown of complexity contributing factors */
+export interface ComplexityBreakdown {
+  /** Base complexity (always 1) */
+  base: number;
+  /** Complexity from decision nodes */
+  decisions: number;
+  /** Complexity from loop nodes */
+  loops: number;
+  /** Complexity from wait nodes */
+  waits: number;
+  /** Complexity from fault handling */
+  faults: number;
+}
+
+/** Complete complexity metrics for a flow */
 export interface ComplexityMetrics {
   /** Cyclomatic complexity score */
-  cyclomaticComplexity: number;
-  /** Complexity rating label */
-  rating: "simple" | "moderate" | "complex" | "very-complex";
-  /** Color for display */
-  color: string;
-  /** Human-readable description */
-  description: string;
+  score: number;
   /** Breakdown of complexity factors */
-  breakdown: {
-    /** Base complexity (always 1) */
-    base: number;
-    /** Complexity from decision nodes */
-    decisions: number;
-    /** Complexity from loop nodes */
-    loops: number;
-    /** Complexity from wait nodes */
-    waits: number;
-    /** Complexity from fault handling */
-    faults: number;
-  };
+  breakdown: ComplexityBreakdown;
   /** Node count by type */
   nodesByType: Record<string, number>;
   /** Total nodes */
@@ -57,10 +178,73 @@ export interface ComplexityMetrics {
   recommendations: string[];
 }
 
+// ============================================================================
+// RANGE LOOKUP FUNCTIONS
+// ============================================================================
+
 /**
- * Count decision outcomes (branches) for a decision node
+ * Get the complexity range configuration for a given score
  */
-function countDecisionOutcomes(nodeId: string, edges: FlowEdge[]): number {
+export function getComplexityRange(score: number): ComplexityRangeConfig {
+  for (const range of COMPLEXITY_RANGES) {
+    if (score >= range.min && score <= range.max) {
+      return range;
+    }
+  }
+  return COMPLEXITY_RANGES[COMPLEXITY_RANGES.length - 1];
+}
+
+/**
+ * Get the index of the complexity range for a given score
+ */
+export function getComplexityRangeIndex(score: number): number {
+  for (let i = 0; i < COMPLEXITY_RANGES.length; i++) {
+    if (
+      score >= COMPLEXITY_RANGES[i].min &&
+      score <= COMPLEXITY_RANGES[i].max
+    ) {
+      return i;
+    }
+  }
+  return COMPLEXITY_RANGES.length - 1;
+}
+
+// ============================================================================
+// DERIVED GETTERS (convenience functions using getComplexityRange)
+// ============================================================================
+
+/** Get the rating for a score */
+export const getRating = (score: number): ComplexityRating =>
+  getComplexityRange(score).rating;
+
+/** Get the badge CSS classes for a score */
+export const getBadgeClass = (score: number): string =>
+  getComplexityRange(score).bgClass;
+
+/** Get the progress bar color class for a score */
+export const getProgressBarColor = (score: number): string =>
+  getComplexityRange(score).color;
+
+/** Get the hex color for a score */
+export const getHexColor = (score: number): string =>
+  getComplexityRange(score).hexColor;
+
+/** Get the description for a score */
+export const getDescription = (score: number): string =>
+  getComplexityRange(score).description;
+
+/** Get the label for a score */
+export const getLabel = (score: number): string =>
+  getComplexityRange(score).label;
+
+// ============================================================================
+// CALCULATION HELPERS
+// ============================================================================
+
+/**
+ * Count decision outcomes (branches) for a node
+ */
+function countOutgoingBranches(nodeId: string, edges: FlowEdge[]): number {
   return edges.filter(
     (e) => e.source === nodeId && e.type !== "fault" && e.type !== "fault-end"
   ).length;
@@ -76,95 +260,14 @@ function countFaultPaths(nodeId: string, edges: FlowEdge[]): number {
 }
 
 /**
- * Calculate cyclomatic complexity for a Salesforce Flow
+ * Generate recommendations based on metrics
  */
-export function calculateComplexity(
-  nodes: FlowNode[],
-  edges: FlowEdge[]
-): ComplexityMetrics {
-  // Count nodes by type
-  const nodesByType: Record<string, number> = {};
-  const nodeTypes: NodeType[] = [];
-
-  for (const node of nodes) {
-    nodesByType[node.type] = (nodesByType[node.type] || 0) + 1;
-    nodeTypes.push(node.type);
-  }
-
-  // Calculate complexity breakdown
-  const breakdown = {
-    base: 1, // Every flow starts with complexity of 1
-    decisions: 0,
-    loops: 0,
-    waits: 0,
-    faults: 0,
-  };
-
-  // Process each node for complexity
-  for (const node of nodes) {
-    switch (node.type) {
-      case "DECISION": {
-        // Each additional outcome adds 1 to complexity
-        const outcomes = countDecisionOutcomes(node.id, edges);
-        if (outcomes > 1) {
-          breakdown.decisions += outcomes - 1;
-        }
-        break;
-      }
-      case "WAIT": {
-        // Wait nodes with multiple scheduled paths add complexity
-        const waitOutcomes = countDecisionOutcomes(node.id, edges);
-        if (waitOutcomes > 1) {
-          breakdown.waits += waitOutcomes - 1;
-        }
-        break;
-      }
-      case "LOOP": {
-        // Each loop adds 1 complexity for the back edge
-        breakdown.loops += 1;
-        break;
-      }
-      default:
-        break;
-    }
-
-    // Fault handling adds complexity
-    const faults = countFaultPaths(node.id, edges);
-    breakdown.faults += faults;
-  }
-
-  // Calculate total cyclomatic complexity
-  const cyclomaticComplexity =
-    breakdown.base +
-    breakdown.decisions +
-    breakdown.loops +
-    breakdown.waits +
-    breakdown.faults;
-
-  // Determine rating
-  let rating: ComplexityMetrics["rating"];
-  let color: string;
-  let description: string;
-
-  if (cyclomaticComplexity <= 10) {
-    rating = "simple";
-    color = "#22c55e"; // Green
-    description = "Simple flow, easy to maintain";
-  } else if (cyclomaticComplexity <= 20) {
-    rating = "moderate";
-    color = "#f59e0b"; // Amber
-    description = "Moderate complexity";
-  } else if (cyclomaticComplexity <= 50) {
-    rating = "complex";
-    color = "#f97316"; // Orange
-    description = "Complex flow, consider breaking into subflows";
-  } else {
-    rating = "very-complex";
-    color = "#ef4444"; // Red
-    description = "Very complex, high maintenance risk";
-  }
-
-  // Generate recommendations
+function generateRecommendations(
+  breakdown: ComplexityBreakdown,
+  nodesByType: Record<string, number>,
+  totalNodes: number,
+  score: number
+): string[] {
   const recommendations: string[] = [];
 
   if (breakdown.decisions > 5) {
@@ -182,7 +285,7 @@ export function calculateComplexity(
       "Many fault handlers - consider a centralized error handling pattern"
     );
   }
-  if (nodes.length > 30) {
+  if (totalNodes > 30) {
     recommendations.push(
       "Large flow - consider breaking into smaller subflows"
     );
@@ -192,39 +295,97 @@ export function calculateComplexity(
       "Many record lookups - check for SOQL optimization opportunities"
     );
   }
-  if (cyclomaticComplexity > 15 && recommendations.length === 0) {
+  if (score > 15 && recommendations.length === 0) {
     recommendations.push("Consider adding inline documentation for clarity");
   }
 
+  return recommendations;
+}
+
+// ============================================================================
+// MAIN CALCULATION
+// ============================================================================
+
+/**
+ * Calculate cyclomatic complexity for a Salesforce Flow
+ */
+export function calculateComplexity(
+  nodes: FlowNode[],
+  edges: FlowEdge[]
+): ComplexityMetrics {
+  // Count nodes by type
+  const nodesByType: Record<string, number> = {};
+  for (const node of nodes) {
+    nodesByType[node.type] = (nodesByType[node.type] || 0) + 1;
+  }
+
+  // Calculate complexity breakdown
+  const breakdown: ComplexityBreakdown = {
+    base: 1,
+    decisions: 0,
+    loops: 0,
+    waits: 0,
+    faults: 0,
+  };
+
+  // Process each node for complexity
+  for (const node of nodes) {
+    switch (node.type) {
+      case "DECISION": {
+        const outcomes = countOutgoingBranches(node.id, edges);
+        if (outcomes > 1) {
+          breakdown.decisions += outcomes - 1;
+        }
+        break;
+      }
+      case "WAIT": {
+        const waitOutcomes = countOutgoingBranches(node.id, edges);
+        if (waitOutcomes > 1) {
+          breakdown.waits += waitOutcomes - 1;
+        }
+        break;
+      }
+      case "LOOP": {
+        breakdown.loops += 1;
+        break;
+      }
+    }
+
+    // Fault handling adds complexity
+    breakdown.faults += countFaultPaths(node.id, edges);
+  }
+
+  // Calculate total score
+  const score =
+    breakdown.base +
+    breakdown.decisions +
+    breakdown.loops +
+    breakdown.waits +
+    breakdown.faults;
+
   return {
-    cyclomaticComplexity,
-    rating,
-    color,
-    description,
+    score,
     breakdown,
     nodesByType,
     totalNodes: nodes.length,
     totalEdges: edges.length,
-    recommendations,
+    recommendations: generateRecommendations(
+      breakdown,
+      nodesByType,
+      nodes.length,
+      score
+    ),
   };
 }
 
+// ============================================================================
+// LEGACY COMPATIBILITY (deprecated - use score-based functions instead)
+// ============================================================================
+
 /**
- * Get complexity badge color class
+ * @deprecated Use getBadgeClass(score) instead
  */
-export function getComplexityColorClass(
-  rating: ComplexityMetrics["rating"]
-): string {
-  switch (rating) {
-    case "simple":
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
-    case "moderate":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
-    case "complex":
-      return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
-    case "very-complex":
-      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-    default:
-      return "bg-slate-100 text-slate-600";
-  }
+export function getComplexityColorClass(rating: ComplexityRating): string {
+  const range = COMPLEXITY_RANGES.find((r) => r.rating === rating);
+  return range?.bgClass ?? "bg-slate-100 text-slate-600";
 }

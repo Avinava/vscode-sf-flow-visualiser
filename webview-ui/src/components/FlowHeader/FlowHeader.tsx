@@ -23,7 +23,14 @@ import {
 } from "lucide-react";
 import type { FlowMetadata } from "../../types";
 import type { ComplexityMetrics } from "../../utils/complexity";
-import { getComplexityColorClass } from "../../utils/complexity";
+import {
+  getBadgeClass,
+  getComplexityRange,
+  getComplexityRangeIndex,
+  getProgressBarColor,
+  COMPLEXITY_RANGES,
+  COMPLEXITY_INFO,
+} from "../../utils/complexity";
 
 // ============================================================================
 // TYPES
@@ -136,17 +143,20 @@ const ComplexityBadge: React.FC<{ complexity: ComplexityMetrics }> = ({
 }) => {
   const [showDetails, setShowDetails] = useState(false);
 
+  // Derive display values from score using centralized functions
+  const { score, breakdown, recommendations } = complexity;
+  const range = getComplexityRange(score);
+  const currentRangeIndex = getComplexityRangeIndex(score);
+
   return (
     <div className="relative">
       <button
         onClick={() => setShowDetails(!showDetails)}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${getComplexityColorClass(complexity.rating)}`}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${getBadgeClass(score)}`}
       >
         <Activity className="w-3.5 h-3.5" />
-        <span>CC: {complexity.cyclomaticComplexity}</span>
-        <span className="hidden sm:inline capitalize">
-          ({complexity.rating.replace("-", " ")})
-        </span>
+        <span>CC: {score}</span>
+        <span className="hidden sm:inline capitalize">({range.label})</span>
       </button>
 
       {/* Details Popover */}
@@ -158,13 +168,13 @@ const ComplexityBadge: React.FC<{ complexity: ComplexityMetrics }> = ({
             onClick={() => setShowDetails(false)}
           />
           {/* Popover */}
-          <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 animate-in">
+          <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 animate-in max-h-[80vh] overflow-y-auto">
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-slate-500" />
                 <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
-                  Complexity Details
+                  Cyclomatic Complexity
                 </span>
               </div>
               <button
@@ -176,103 +186,153 @@ const ComplexityBadge: React.FC<{ complexity: ComplexityMetrics }> = ({
             </div>
 
             {/* Content */}
-            <div className="p-3 space-y-3">
+            <div className="p-3 space-y-4">
               {/* Score and Rating */}
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                  {complexity.cyclomaticComplexity}
-                </span>
+                <div>
+                  <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                    {score}
+                  </span>
+                  <span className="text-sm text-slate-400 ml-1">/ 50</span>
+                </div>
                 <span
-                  className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${getComplexityColorClass(complexity.rating)}`}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getBadgeClass(score)}`}
                 >
-                  {complexity.rating.replace("-", " ")}
+                  {range.label}
                 </span>
+              </div>
+
+              {/* Visual Progress Bar */}
+              <div className="space-y-1">
+                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${getProgressBarColor(score)}`}
+                    style={{ width: `${Math.min(100, (score / 50) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-400">
+                  {COMPLEXITY_RANGES.slice(0, 4).map((r) => (
+                    <span key={r.rating}>{r.label}</span>
+                  ))}
+                </div>
               </div>
 
               {/* Description */}
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {complexity.description}
+                {range.description}
               </p>
+
+              {/* Reference Ranges */}
+              <div>
+                <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+                  Reference Ranges
+                </div>
+                <div className="space-y-1.5">
+                  {COMPLEXITY_RANGES.map((ref, idx) => (
+                    <div
+                      key={ref.range}
+                      className={`flex items-center gap-2 text-xs p-1.5 rounded ${
+                        currentRangeIndex === idx
+                          ? "bg-slate-100 dark:bg-slate-700 ring-1 ring-slate-300 dark:ring-slate-600"
+                          : ""
+                      }`}
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${ref.color} flex-shrink-0`}
+                      />
+                      <span className="font-mono text-slate-500 dark:text-slate-400 w-10">
+                        {ref.range}
+                      </span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300 w-16">
+                        {ref.label}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400 text-[10px]">
+                        {ref.description}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               {/* Breakdown */}
               <div>
                 <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
                   Score Breakdown
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/50 rounded-md p-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-600 dark:text-slate-400">
-                      Base complexity
+                      Base (start node)
                     </span>
                     <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                      {complexity.breakdown.base}
+                      {breakdown.base}
                     </span>
                   </div>
-                  {complexity.breakdown.decisions > 0 && (
+                  {breakdown.decisions > 0 && (
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-600 dark:text-slate-400">
                         Decision branches
                       </span>
                       <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
-                        +{complexity.breakdown.decisions}
+                        +{breakdown.decisions}
                       </span>
                     </div>
                   )}
-                  {complexity.breakdown.loops > 0 && (
+                  {breakdown.loops > 0 && (
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-600 dark:text-slate-400">
                         Loop iterations
                       </span>
                       <span className="font-mono font-medium text-pink-600 dark:text-pink-400">
-                        +{complexity.breakdown.loops}
+                        +{breakdown.loops}
                       </span>
                     </div>
                   )}
-                  {complexity.breakdown.waits > 0 && (
+                  {breakdown.waits > 0 && (
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-600 dark:text-slate-400">
                         Wait paths
                       </span>
                       <span className="font-mono font-medium text-yellow-600 dark:text-yellow-400">
-                        +{complexity.breakdown.waits}
+                        +{breakdown.waits}
                       </span>
                     </div>
                   )}
-                  {complexity.breakdown.faults > 0 && (
+                  {breakdown.faults > 0 && (
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-600 dark:text-slate-400">
                         Fault handlers
                       </span>
                       <span className="font-mono font-medium text-red-600 dark:text-red-400">
-                        +{complexity.breakdown.faults}
+                        +{breakdown.faults}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex justify-between text-xs pt-1.5 mt-1.5 border-t border-slate-200 dark:border-slate-700">
                     <span className="font-medium text-slate-700 dark:text-slate-300">
-                      Total
+                      Total Score
                     </span>
                     <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
-                      {complexity.cyclomaticComplexity}
+                      {score}
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Recommendations */}
-              {complexity.recommendations.length > 0 && (
+              {recommendations.length > 0 && (
                 <div>
                   <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
                     Recommendations
                   </div>
-                  <div className="space-y-1">
-                    {complexity.recommendations.map((rec, idx) => (
+                  <div className="space-y-1.5">
+                    {recommendations.map((rec, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-400"
+                        className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded"
                       >
                         <AlertTriangle
-                          size={11}
+                          size={12}
                           className="text-amber-500 mt-0.5 flex-shrink-0"
                         />
                         <span>{rec}</span>
@@ -283,12 +343,42 @@ const ComplexityBadge: React.FC<{ complexity: ComplexityMetrics }> = ({
               )}
             </div>
 
+            {/* Salesforce-specific factors */}
+            <div className="px-3 py-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+                Salesforce Flow Factors
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {COMPLEXITY_INFO.salesforceFactors.map((factor) => (
+                  <div
+                    key={factor.type}
+                    className="text-[10px] text-slate-500 dark:text-slate-400"
+                  >
+                    <span className="font-medium text-slate-600 dark:text-slate-300">
+                      {factor.type}:
+                    </span>{" "}
+                    <span>{factor.impact}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Footer with info */}
-            <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900/50 rounded-b-lg border-t border-slate-200 dark:border-slate-700">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                Cyclomatic complexity measures the number of linearly
-                independent paths through a flow. Lower is better.
-              </p>
+            <div className="px-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-b-lg border-t border-slate-200 dark:border-slate-700">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 space-y-1">
+                <p className="font-medium">{COMPLEXITY_INFO.title}</p>
+                <p className="text-slate-400 dark:text-slate-500">
+                  {COMPLEXITY_INFO.whatItMeasures}
+                </p>
+                <p className="text-slate-400 dark:text-slate-500 pt-1">
+                  <span className="font-medium">Formula:</span>{" "}
+                  {COMPLEXITY_INFO.formula}
+                  <br />
+                  <span className="text-[9px]">
+                    ({COMPLEXITY_INFO.formulaExplanation})
+                  </span>
+                </p>
+              </div>
             </div>
           </div>
         </>

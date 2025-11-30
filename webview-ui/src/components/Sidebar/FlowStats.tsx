@@ -13,7 +13,9 @@ import type { FlowNode, FlowEdge, NodeTypeConfig } from "../../types";
 import { NODE_CONFIG } from "../../constants";
 import {
   calculateComplexity,
-  getComplexityColorClass,
+  getBadgeClass,
+  getComplexityRange,
+  COMPLEXITY_RANGES,
   type ComplexityMetrics,
 } from "../../utils/complexity";
 
@@ -72,11 +74,14 @@ export const FlowStats: React.FC<FlowStatsProps> = ({
         {/* Complexity badge */}
         {metrics && (
           <span
-            className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 cursor-pointer ${getComplexityColorClass(metrics.rating)}`}
+            className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 cursor-pointer ${getBadgeClass(metrics.score)}`}
             onClick={() => setExpanded(!expanded)}
-            title={`Cyclomatic Complexity: ${metrics.cyclomaticComplexity}`}
+            title={`Cyclomatic Complexity: ${metrics.score} (${getComplexityRange(metrics.score).label})`}
           >
-            CC: {metrics.cyclomaticComplexity}
+            CC: {metrics.score}
+            <span className="hidden sm:inline">
+              {getComplexityRange(metrics.score).label}
+            </span>
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </span>
         )}
@@ -93,7 +98,7 @@ export const FlowStats: React.FC<FlowStatsProps> = ({
             />
             <div>
               <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                {metrics.description}
+                {getComplexityRange(metrics.score).description}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 Complexity: {metrics.breakdown.base} base +{" "}
@@ -101,6 +106,34 @@ export const FlowStats: React.FC<FlowStatsProps> = ({
                 {metrics.breakdown.loops} loops + {metrics.breakdown.waits}{" "}
                 waits + {metrics.breakdown.faults} faults
               </div>
+            </div>
+          </div>
+
+          {/* Reference scale */}
+          <div>
+            <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">
+              Complexity Scale
+            </div>
+            <div className="flex gap-0.5">
+              {COMPLEXITY_RANGES.map((range) => {
+                const currentRange = getComplexityRange(metrics.score);
+                const isActive = currentRange.rating === range.rating;
+                return (
+                  <div
+                    key={range.range}
+                    className={`flex-1 text-center py-1 rounded text-[9px] ${range.color} ${
+                      isActive
+                        ? "ring-2 ring-offset-1 ring-slate-400 dark:ring-slate-500"
+                        : "opacity-40"
+                    }`}
+                    title={`${range.label}: ${range.range} - ${range.description}`}
+                  >
+                    <span className="text-white font-medium">
+                      {range.range}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
