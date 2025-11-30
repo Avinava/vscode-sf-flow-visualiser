@@ -269,10 +269,14 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
         ? "url(#arrow-highlight)"
         : "url(#arrow)";
 
+      // Use horizontal-first strategy for LOOP "For Each" branches and START scheduled paths
+      // This prevents the unnecessary vertical drop when branches spread horizontally
+      const isLoopForEach =
+        srcNode.type === "LOOP" && edge.type === "loop-next";
+      const isStartScheduledPath =
+        srcNode.type === "START" && bl.branches.length > 1;
       const dropStrategy =
-        srcNode.type === "LOOP" && edge.type === "loop-next"
-          ? "horizontal-first"
-          : "auto";
+        isLoopForEach || isStartScheduledPath ? "horizontal-first" : "auto";
 
       const path = ConnectorPathService.createBranchDropPath(
         branchX,
