@@ -50,8 +50,10 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - 📁 **Multiple Access Points** - Open from editor title bar, context menu, explorer, or command palette
 - 🎯 **Branch Visualization** - Clear representation of decision outcomes, loop iterations, and fault paths
 - ⚡ **Fault Path Tracking** - Red dashed connectors clearly show error handling and fault paths
+- ✨ **Animated Flow Lines** - Optional flowing animation on connectors to visualize flow direction
 - 🚀 **Zero Configuration** - Works out of the box with any Salesforce Flow XML file
 - 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
+- 💾 **Persistent Preferences** - Theme and animation settings are remembered across sessions
 
 ## 📋 Supported Flow Elements
 
@@ -108,11 +110,14 @@ Or [install directly from the marketplace](https://marketplace.visualstudio.com/
 ### Navigation Controls
 
 | Action | Control |
-|--------|---------|
+|--------|--------|
 | **Pan** | Click and drag on canvas |
 | **Zoom In/Out** | Scroll wheel or toolbar buttons |
 | **Reset View** | Click home icon (🏠) in toolbar |
+| **Fit to View** | Click fit icon or press `F` |
 | **Toggle Auto-Layout** | Click layout button in toolbar |
+| **Toggle Animation** | Click animation button or press `A` |
+| **Toggle Theme** | Click theme button or press `T` |
 | **View Node Details** | Click on any node |
 | **Toggle Sidebar** | Click arrow on left edge |
 

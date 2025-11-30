@@ -180,18 +180,28 @@ function detectVSCodeTheme(): boolean {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  // Initialize mode from persisted state or default to "system"
-  const [mode, setModeState] = useState<ThemeMode>("system");
+  // Check for persisted state on initial load
+  const initialState = vscode?.getState() as
+    | { themeMode?: ThemeMode; animateFlow?: boolean }
+    | undefined;
+
+  // Initialize mode from persisted state or default to "light"
+  const [mode, setModeState] = useState<ThemeMode>(
+    initialState?.themeMode ?? "light"
+  );
   const [systemIsDark, setSystemIsDark] = useState(() => detectVSCodeTheme());
 
-  // Animation state - persisted
-  const [animateFlow, setAnimateFlow] = useState<boolean>(false);
+  // Animation state - persisted, defaults to true (on)
+  const [animateFlow, setAnimateFlow] = useState<boolean>(
+    initialState?.animateFlow ?? true
+  );
 
   // Listen for state restoration from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const { command, payload } = event.data;
       if (command === "restoreState" && payload) {
+        // Only restore from extension host if values are explicitly set
         if (payload.themeMode) {
           setModeState(payload.themeMode);
         }
@@ -202,18 +212,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     };
 
     window.addEventListener("message", handler);
-
-    // Also try to read from webview state as fallback
-    const savedState = vscode?.getState() as
-      | { themeMode?: ThemeMode; animateFlow?: boolean }
-      | undefined;
-    if (savedState?.themeMode) {
-      setModeState(savedState.themeMode);
-    }
-    if (savedState?.animateFlow !== undefined) {
-      setAnimateFlow(savedState.animateFlow);
-    }
-
     return () => window.removeEventListener("message", handler);
   }, []);
 
