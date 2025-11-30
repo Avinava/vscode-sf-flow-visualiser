@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD032 MD033 MD041 -->
+
 <p align="center">
   <img src="assets/icon.png" alt="SF Flow Visualizer" width="128" height="128">
 </p>
@@ -55,27 +57,29 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
 - 💾 **Persistent Preferences** - Theme and animation settings are remembered across sessions
 
-### What's New in 1.1.3
+### What's New in 1.1.4
 
-- Scheduled path connectors ("Run Immediately" / "Run Asynchronously") from Start nodes now route cleanly without the extra vertical drop that broke the visual flow
+- Start nodes that only define scheduled paths now mirror Salesforce's canvas by auto-terminating the "Run Immediately" branch with an End node, so the async lane is the only vertical column
+- Start connector parsing now ignores nested scheduled path connectors, which keeps branch labels ("Run Immediately", "Run Asynchronously", etc.) perfectly aligned even when the immediate path is missing
+- Scheduled path connectors ("Run Immediately" / "Run Asynchronously") continue to route cleanly without the extra vertical drop introduced in prior versions
 
 ## 📋 Supported Flow Elements
 
-| Element | Type | Description |
-|---------|------|-------------|
-| ▶️ Start | Trigger | Record-triggered, Scheduled, or Auto-launched |
-| 🖥️ Screen | UI | User interaction screens |
-| 🔀 Decision | Logic | Branching with multiple outcomes |
-| ✅ Assignment | Data | Variable assignments |
-| 🔁 Loop | Iteration | For-each loops with next/end paths |
-| ➕ Record Create | DML | Create new records |
-| ✏️ Record Update | DML | Update existing records |
-| 🔍 Record Lookup | Query | Get records from database |
-| 🗑️ Record Delete | DML | Delete records |
-| ⚡ Action | Invocable | Apex actions and quick actions |
-| 📦 Subflow | Flow | Call another flow |
-| ⏰ Wait | Pause | Wait events and scheduled paths |
-| ⚠️ Custom Error | Error | Custom error handling |
+| Element          | Type      | Description                                   |
+| ---------------- | --------- | --------------------------------------------- |
+| ▶️ Start         | Trigger   | Record-triggered, Scheduled, or Auto-launched |
+| 🖥️ Screen        | UI        | User interaction screens                      |
+| 🔀 Decision      | Logic     | Branching with multiple outcomes              |
+| ✅ Assignment    | Data      | Variable assignments                          |
+| 🔁 Loop          | Iteration | For-each loops with next/end paths            |
+| ➕ Record Create | DML       | Create new records                            |
+| ✏️ Record Update | DML       | Update existing records                       |
+| 🔍 Record Lookup | Query     | Get records from database                     |
+| 🗑️ Record Delete | DML       | Delete records                                |
+| ⚡ Action        | Invocable | Apex actions and quick actions                |
+| 📦 Subflow       | Flow      | Call another flow                             |
+| ⏰ Wait          | Pause     | Wait events and scheduled paths               |
+| ⚠️ Custom Error  | Error     | Custom error handling                         |
 
 ## 🚀 Quick Start
 
@@ -99,31 +103,34 @@ Or [install directly from the marketplace](https://marketplace.visualstudio.com/
 ### Opening a Flow
 
 **From Editor:**
+
 1. Open any `.flow-meta.xml` file
 2. Click the **graph icon** (📊) in the editor title bar
 
 **From Explorer:**
+
 1. Right-click any `.flow-meta.xml` file
 2. Select **"SFFV: Visualize Flow"**
 
 **From Command Palette:**
+
 1. Open a flow file
 2. Press `Cmd+Shift+P` / `Ctrl+Shift+P`
 3. Run **"SFFV: Visualize Flow"**
 
 ### Navigation Controls
 
-| Action | Control |
-|--------|--------|
-| **Pan** | Click and drag on canvas |
-| **Zoom In/Out** | Scroll wheel or toolbar buttons |
-| **Reset View** | Click home icon (🏠) in toolbar |
-| **Fit to View** | Click fit icon or press `F` |
-| **Toggle Auto-Layout** | Click layout button in toolbar |
-| **Toggle Animation** | Click animation button or press `A` |
-| **Toggle Theme** | Click theme button or press `T` |
-| **View Node Details** | Click on any node |
-| **Toggle Sidebar** | Click arrow on left edge |
+| Action                 | Control                             |
+| ---------------------- | ----------------------------------- |
+| **Pan**                | Click and drag on canvas            |
+| **Zoom In/Out**        | Scroll wheel or toolbar buttons     |
+| **Reset View**         | Click home icon (🏠) in toolbar     |
+| **Fit to View**        | Click fit icon or press `F`         |
+| **Toggle Auto-Layout** | Click layout button in toolbar      |
+| **Toggle Animation**   | Click animation button or press `A` |
+| **Toggle Theme**       | Click theme button or press `T`     |
+| **View Node Details**  | Click on any node                   |
+| **Toggle Sidebar**     | Click arrow on left edge            |
 
 ### Understanding the Diagram
 
@@ -136,10 +143,10 @@ Or [install directly from the marketplace](https://marketplace.visualstudio.com/
 
 This extension provides the following configurable settings:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `sf-flow-visualizer.autoLayout` | `true` | Automatically arrange nodes for optimal visibility when coordinates are missing |
-| `sf-flow-visualizer.theme` | `light` | Visual theme: `light`, `dark`, or `auto` (follows VS Code theme) |
+| Setting                         | Default | Description                                                                     |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `sf-flow-visualizer.autoLayout` | `true`  | Automatically arrange nodes for optimal visibility when coordinates are missing |
+| `sf-flow-visualizer.theme`      | `light` | Visual theme: `light`, `dark`, or `auto` (follows VS Code theme)                |
 
 Access settings via `Preferences > Settings` and search for "SF Flow Visualizer".
 
@@ -154,14 +161,17 @@ Access settings via `Preferences > Settings` and search for "SF Flow Visualizer"
 ## 🐛 Troubleshooting
 
 **Flow doesn't display?**
+
 - Ensure the file has a `.flow-meta.xml` extension
 - Check that the XML is valid Salesforce Flow metadata
 
 **Layout looks odd?**
+
 - Try clicking the "Auto-Layout" button in the toolbar
 - Reset the view with the home icon (🏠)
 
 **Still having issues?**
+
 - [Open an issue on GitHub](https://github.com/Avinava/vscode-sf-flow-visualiser/issues)
 
 ## 🗺️ Roadmap
@@ -202,6 +212,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## ⭐ Show Your Support
 
 If this extension helps you work with Salesforce Flows more efficiently, please:
+
 - ⭐ Star the [GitHub repository](https://github.com/Avinava/vscode-sf-flow-visualiser)
 - ✍️ Leave a [review on the marketplace](https://marketplace.visualstudio.com/items?itemName=avidev9.sf-flow-visualizer)
 - 🐦 Share with your team and the Salesforce community
@@ -209,6 +220,7 @@ If this extension helps you work with Salesforce Flows more efficiently, please:
 ## 🙏 Acknowledgments
 
 Built with modern web technologies:
+
 - [React](https://reactjs.org/) - UI framework
 - [Vite](https://vitejs.dev/) - Lightning-fast build tool
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first styling

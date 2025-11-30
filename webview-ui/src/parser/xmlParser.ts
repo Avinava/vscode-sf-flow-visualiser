@@ -9,13 +9,7 @@
  * - alcCanvasUtils.js: Element parsing, type detection
  */
 
-import type {
-  FlowNode,
-  FlowEdge,
-  ParsedFlow,
-  FlowMetadata,
-  NodeType,
-} from "../types";
+import type { FlowNode, FlowEdge, ParsedFlow, FlowMetadata, NodeType } from "../types";
 import { NODE_WIDTH, NODE_HEIGHT } from "../constants";
 import { buildFlowRelationships } from "./buildFlowModel";
 
@@ -54,6 +48,10 @@ const XML_TAG_TO_NODE_TYPE: Record<string, NodeType> = {
  */
 function getText(el: Element, tag: string): string {
   return el.getElementsByTagName(tag)[0]?.textContent || "";
+}
+
+function getDirectChild(el: Element, tag: string): Element | undefined {
+  return Array.from(el.children).find((child) => child.tagName === tag);
 }
 
 /**
@@ -126,7 +124,7 @@ function parseStartElement(startEl: Element): StartNodeResult {
   const hasScheduledPaths = scheduledPaths.length > 0;
 
   // Parse main connector
-  const connEl = startEl.getElementsByTagName("connector")[0];
+  const connEl = getDirectChild(startEl, "connector");
   if (connEl) {
     const { target, isGoTo } = parseConnector(connEl);
     if (target) {
@@ -140,6 +138,15 @@ function parseStartElement(startEl: Element): StartNodeResult {
         isGoTo,
       });
     }
+  } else if (hasScheduledPaths) {
+    // No immediate path connector - create implicit END for "Run Immediately"
+    edges.push({
+      id: "start-immediate-end",
+      source: "START_NODE",
+      target: "START_IMMEDIATE_END",
+      label: "Run Immediately",
+      type: "normal",
+    });
   }
 
   // Parse scheduled paths (for record-triggered flows with async paths)
@@ -370,10 +377,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
 // Based on Salesforce's handling of terminal nodes
 // ============================================================================
 
-function generateEndNodes(
-  nodes: FlowNode[],
-  edges: FlowEdge[]
-): { nodes: FlowNode[]; edges: FlowEdge[] } {
+function generateEndNodes(nodes: FlowNode[], edges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const resultNodes = [...nodes];
   const resultEdges = [...edges];
 
@@ -390,12 +394,27 @@ function generateEndNodes(
 
   let endNodeCount = 0;
 
+  // Handle START node with immediate end (when there are scheduled paths but no immediate connector)
+  const startImmediateEndEdge = edges.find((e) => e.target === "START_IMMEDIATE_END");
+  if (startImmediateEndEdge) {
+    resultNodes.push({
+      id: "START_IMMEDIATE_END",
+      type: "END",
+      label: "End",
+      x: 0,
+      y: 0,
+      width: NODE_WIDTH,
+      height: 40,
+      data: { isFaultPath: false },
+    });
+    // Edge already exists in edges array
+  }
+
   // Handle Decision nodes with implicit default End (no defaultConnector but has defaultConnectorLabel)
   nodes.forEach((node) => {
     if (node.type === "DECISION" && node.data.hasImplicitDefaultEnd) {
       const endNodeId = `END_NODE_${endNodeCount++}`;
-      const defLabel =
-        (node.data.defaultConnectorLabel as string) || "Default Outcome";
+      const defLabel = (node.data.defaultConnectorLabel as string) || "Default Outcome";
 
       resultNodes.push({
         id: endNodeId,
@@ -419,9 +438,7 @@ function generateEndNodes(
   });
 
   // Find terminal nodes (no outgoing edges, not START)
-  const terminalNodes = nodes.filter(
-    (node) => !nodesWithOutgoing.has(node.id) && node.type !== "START"
-  );
+  const terminalNodes = nodes.filter((node) => !nodesWithOutgoing.has(node.id) && node.type !== "START");
 
   terminalNodes.forEach((node) => {
     const endNodeId = `END_NODE_${endNodeCount++}`;
@@ -546,10 +563,7 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   }
 
   // Generate END nodes for terminal paths
-  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(
-    nodes,
-    edges
-  );
+  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(nodes, edges);
 
   const normalizedNodes = buildFlowRelationships(finalNodes, finalEdges);
 
