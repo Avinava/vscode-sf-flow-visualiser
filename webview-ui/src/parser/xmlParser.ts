@@ -441,9 +441,10 @@ function generateEndNodes(
 
 // ============================================================================
 // METADATA PARSING
+// Based on Salesforce Flow metadata XML schema
 // ============================================================================
 
-function parseMetadata(flowEl: Element): FlowMetadata {
+function parseMetadata(flowEl: Element, startEl: Element | null): FlowMetadata {
   const metadata: FlowMetadata = {};
 
   for (const child of Array.from(flowEl.children)) {
@@ -457,7 +458,33 @@ function parseMetadata(flowEl: Element): FlowMetadata {
       case "processType":
         metadata.processType = child.textContent || "";
         break;
+      case "description":
+        metadata.description = child.textContent || "";
+        break;
+      case "status":
+        metadata.status = child.textContent || "";
+        break;
+      case "environments":
+        metadata.environments = child.textContent || "";
+        break;
+      case "interviewLabel":
+        metadata.interviewLabel = child.textContent || "";
+        break;
+      case "runInMode":
+        metadata.runInMode = child.textContent || "";
+        break;
     }
+  }
+
+  // Extract trigger info from start element
+  if (startEl) {
+    const triggerType = getText(startEl, "triggerType");
+    const object = getText(startEl, "object");
+    const recordTriggerType = getText(startEl, "recordTriggerType");
+
+    if (triggerType) metadata.triggerType = triggerType;
+    if (object) metadata.object = object;
+    if (recordTriggerType) metadata.recordTriggerType = recordTriggerType;
   }
 
   return metadata;
@@ -481,14 +508,16 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   let edges: FlowEdge[] = [];
   let metadata: FlowMetadata = {};
 
-  // Parse flow metadata
+  // Parse start element first
+  const startEl = doc.getElementsByTagName("start")[0];
+
+  // Parse flow metadata (needs start element for trigger info)
   const flowEl = doc.getElementsByTagName("Flow")[0];
   if (flowEl) {
-    metadata = parseMetadata(flowEl);
+    metadata = parseMetadata(flowEl, startEl || null);
   }
 
   // Parse start element
-  const startEl = doc.getElementsByTagName("start")[0];
   if (startEl) {
     const { node, edges: startEdges } = parseStartElement(startEl);
     nodes.push(node);

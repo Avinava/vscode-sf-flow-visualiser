@@ -241,7 +241,7 @@ export interface LayoutConfig {
 // ============================================================================
 
 /**
- * Flow metadata
+ * Flow metadata - comprehensive metadata from XML
  */
 export interface FlowMetadata {
   label?: string;
@@ -249,6 +249,12 @@ export interface FlowMetadata {
   processType?: string;
   triggerType?: string;
   object?: string;
+  description?: string;
+  status?: string;
+  environments?: string;
+  interviewLabel?: string;
+  runInMode?: string;
+  recordTriggerType?: string;
 }
 
 /**

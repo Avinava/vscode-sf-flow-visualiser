@@ -77,6 +77,8 @@ export class FlowPanel {
     if (FlowPanel.currentPanel) {
       // If panel exists, update it with new content
       FlowPanel.currentPanel._panel.reveal(vscode.ViewColumn.Beside);
+      // Update panel title to reflect the new flow
+      FlowPanel.currentPanel._panel.title = `Flow: ${flowName}`;
       FlowPanel.currentPanel._panel.webview.postMessage({
         command: "loadXml",
         payload: xmlContent,
