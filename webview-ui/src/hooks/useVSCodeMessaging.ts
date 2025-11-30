@@ -13,12 +13,13 @@ const vscode = getVSCodeApi();
 
 export interface VSCodeMessage {
   command: string;
-  payload?: string;
+  payload?: unknown;
   fileName?: string;
 }
 
 export interface UseVSCodeMessagingOptions {
   onLoadXml: (xml: string, fileName?: string) => void;
+  onAutoOpenPreference?: (enabled: boolean) => void;
 }
 
 export interface UseVSCodeMessagingResult {
@@ -35,7 +36,7 @@ export interface UseVSCodeMessagingResult {
 export function useVSCodeMessaging(
   options: UseVSCodeMessagingOptions
 ): UseVSCodeMessagingResult {
-  const { onLoadXml } = options;
+  const { onLoadXml, onAutoOpenPreference } = options;
 
   // Use ref to avoid stale closure issues
   const onLoadXmlRef = useRef(onLoadXml);
@@ -48,8 +49,20 @@ export function useVSCodeMessaging(
 
       switch (command) {
         case "loadXml":
-          if (payload) {
+          if (typeof payload === "string") {
             onLoadXmlRef.current(payload, fileName);
+          }
+          break;
+        case "autoOpenPreference":
+          if (
+            onAutoOpenPreference &&
+            payload &&
+            typeof payload === "object" &&
+            "enabled" in (payload as Record<string, unknown>)
+          ) {
+            onAutoOpenPreference(
+              Boolean((payload as { enabled: boolean }).enabled)
+            );
           }
           break;
         // Add more commands as needed

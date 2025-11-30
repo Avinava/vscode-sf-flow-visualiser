@@ -17,27 +17,33 @@ import {
   Keyboard,
   Play,
   Pause,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useTheme } from "../../context";
 
 export interface CanvasToolbarProps {
   scale: number;
   autoLayoutEnabled: boolean;
+  autoOpenEnabled: boolean;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetView: () => void;
   onFitToView: () => void;
   onToggleAutoLayout: () => void;
+  onToggleAutoOpen: () => void;
 }
 
 export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   scale,
   autoLayoutEnabled,
+  autoOpenEnabled,
   onZoomIn,
   onZoomOut,
   onResetView,
   onFitToView,
   onToggleAutoLayout,
+  onToggleAutoOpen,
 }) => {
   const { isDark, toggleTheme, animateFlow, toggleAnimation } = useTheme();
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -82,6 +88,15 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         >
           <Layout size={14} />
           Auto-Layout
+        </button>
+        <button
+          onClick={onToggleAutoOpen}
+          className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors
+            ${autoOpenEnabled ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
+          title="Automatically open Flow Viewer when viewing flow files"
+        >
+          {autoOpenEnabled ? <Eye size={14} /> : <EyeOff size={14} />}
+          Auto-Open
         </button>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button

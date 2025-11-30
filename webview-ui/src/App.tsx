@@ -35,6 +35,7 @@ import type { BoundingBox } from "./hooks/useCanvasInteraction";
 const AppContent: React.FC = () => {
   // Sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
 
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
@@ -170,7 +171,17 @@ const AppContent: React.FC = () => {
   );
 
   // VS Code messaging hook - must be last to use other callbacks
-  useVSCodeMessaging({ onLoadXml: handleLoadXml });
+  const { postMessage } = useVSCodeMessaging({
+    onLoadXml: handleLoadXml,
+    onAutoOpenPreference: setAutoOpenViewerEnabled,
+  });
+
+  const handleToggleAutoOpenPreference = useCallback(() => {
+    postMessage({
+      command: "setAutoOpenPreference",
+      payload: { enabled: !autoOpenViewerEnabled },
+    });
+  }, [autoOpenViewerEnabled, postMessage]);
 
   return (
     <div
@@ -201,11 +212,13 @@ const AppContent: React.FC = () => {
           <CanvasToolbar
             scale={state.scale}
             autoLayoutEnabled={autoLayoutEnabled}
+            autoOpenEnabled={autoOpenViewerEnabled}
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onResetView={resetView}
             onFitToView={fitToView}
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
+            onToggleAutoOpen={handleToggleAutoOpenPreference}
           />
 
           {/* Canvas */}

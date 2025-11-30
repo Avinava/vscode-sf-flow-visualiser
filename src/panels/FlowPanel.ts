@@ -11,11 +11,20 @@ export class FlowPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
+  private _webviewReady = false;
 
   private static _context: vscode.ExtensionContext | undefined;
+  private static _latestAutoOpenPreference: boolean | undefined;
 
   public static setContext(context: vscode.ExtensionContext) {
     FlowPanel._context = context;
+  }
+
+  public static setAutoOpenPreference(enabled: boolean) {
+    FlowPanel._latestAutoOpenPreference = enabled;
+    if (FlowPanel.currentPanel) {
+      FlowPanel.currentPanel._postAutoOpenPreference(enabled);
+    }
   }
 
   private constructor(
@@ -56,6 +65,7 @@ export class FlowPanel {
             vscode.window.showInformationMessage(message.text);
             return;
           case "ready":
+            this._webviewReady = true;
             // Webview is ready, send the XML content
             this._panel.webview.postMessage({
               command: "loadXml",
@@ -75,12 +85,27 @@ export class FlowPanel {
                 });
               }
             }
+            if (FlowPanel._latestAutoOpenPreference !== undefined) {
+              this._postAutoOpenPreference(FlowPanel._latestAutoOpenPreference);
+            }
             return;
           case "saveState":
             // Persist state to globalState
             if (FlowPanel._context && message.payload) {
               const { key, value } = message.payload;
               FlowPanel._context.globalState.update(key, value);
+            }
+            return;
+          case "setAutoOpenPreference":
+            if (
+              message.payload &&
+              typeof message.payload === "object" &&
+              "enabled" in message.payload
+            ) {
+              const enabled = Boolean(
+                (message.payload as { enabled: boolean }).enabled
+              );
+              FlowPanel.updateAutoOpenSetting(enabled);
             }
             return;
         }
@@ -96,13 +121,17 @@ export class FlowPanel {
   public static render(
     extensionUri: vscode.Uri,
     xmlContent: string,
-    fileName: string
+    fileName: string,
+    options: FlowPanelRenderOptions = {}
   ) {
     const flowName = path.basename(fileName).replace(".flow-meta.xml", "");
 
     if (FlowPanel.currentPanel) {
       // If panel exists, update it with new content
-      FlowPanel.currentPanel._panel.reveal(vscode.ViewColumn.Beside);
+      FlowPanel.currentPanel._panel.reveal(
+        vscode.ViewColumn.Beside,
+        options.preserveFocus ?? false
+      );
       // Update panel title to reflect the new flow
       FlowPanel.currentPanel._panel.title = `Flow: ${flowName}`;
       FlowPanel.currentPanel._panel.webview.postMessage({
@@ -137,6 +166,15 @@ export class FlowPanel {
         xmlContent,
         fileName
       );
+
+      if (options.preserveFocus && options.sourceEditor) {
+        setTimeout(() => {
+          vscode.window.showTextDocument(options.sourceEditor.document, {
+            viewColumn: options.sourceEditor.viewColumn,
+            preserveFocus: false,
+          });
+        }, 0);
+      }
     }
   }
 
@@ -194,4 +232,37 @@ export class FlowPanel {
       </html>
     `;
   }
+
+  private _postAutoOpenPreference(enabled: boolean) {
+    if (!this._webviewReady) {
+      return;
+    }
+
+    this._panel.webview.postMessage({
+      command: "autoOpenPreference",
+      payload: { enabled },
+    });
+  }
+
+  private static updateAutoOpenSetting(enabled: boolean) {
+    const config = vscode.workspace.getConfiguration("sf-flow-visualizer");
+    const target =
+      vscode.workspace.workspaceFolders &&
+      vscode.workspace.workspaceFolders.length > 0
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+
+    config.update("autoOpenFlowViewer", enabled, target).catch((error) => {
+      vscode.window.showErrorMessage(
+        `Unable to update Flow Viewer auto-open preference: ${error}`
+      );
+      const currentValue = config.get<boolean>("autoOpenFlowViewer", true);
+      FlowPanel.setAutoOpenPreference(currentValue);
+    });
+  }
+}
+
+interface FlowPanelRenderOptions {
+  preserveFocus?: boolean;
+  sourceEditor?: vscode.TextEditor;
 }

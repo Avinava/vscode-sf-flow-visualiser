@@ -78,6 +78,11 @@
           "default": true,
           "description": "Automatically layout flow nodes when coordinates are missing"
         },
+        "sf-flow-visualizer.autoOpenFlowViewer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open the Flow Viewer when a *.flow-meta.xml file is active"
+        },
         "sf-flow-visualizer.theme": {
           "type": "string",
           "default": "light",
