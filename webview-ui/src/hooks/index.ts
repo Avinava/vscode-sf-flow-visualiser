@@ -30,3 +30,9 @@ export type {
   UseNodeSelectionOptions,
   UseNodeSelectionResult,
 } from "./useNodeSelection";
+
+export { useEdgeSelection } from "./useEdgeSelection";
+export type {
+  UseEdgeSelectionOptions,
+  UseEdgeSelectionResult,
+} from "./useEdgeSelection";

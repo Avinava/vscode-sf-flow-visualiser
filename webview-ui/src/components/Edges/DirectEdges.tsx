@@ -17,6 +17,8 @@ export interface DirectEdgesProps {
   handledEdges: Set<string>;
   selectedNodeId?: string;
   animateFlow?: boolean;
+  highlightedPath?: Set<string>;
+  onEdgeClick?: (edgeId: string) => void;
 }
 
 /**
@@ -28,6 +30,8 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
   handledEdges,
   selectedNodeId,
   animateFlow,
+  highlightedPath,
+  onEdgeClick,
 }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const elements: JSX.Element[] = [];
@@ -63,9 +67,11 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     const isFaultEnd = edge.type === "fault-end";
     const isGoTo = edge.isGoTo === true || edge.type === "goto";
     const isLoopBack = !isFault && !isFaultEnd && tgtTopY < srcBottomY;
+    const isPathHighlighted = highlightedPath?.has(edge.id) ?? false;
     const isHighlighted =
-      !!selectedNodeId &&
-      (edge.source === selectedNodeId || edge.target === selectedNodeId);
+      isPathHighlighted ||
+      (!!selectedNodeId &&
+        (edge.source === selectedNodeId || edge.target === selectedNodeId));
 
     let path: string;
     const showAsRed = isFault || isFaultEnd;
@@ -145,6 +151,15 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
 
     elements.push(
       <g key={edge.id}>
+        {/* Invisible hit area for easier clicking */}
+        <path
+          d={path}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={16}
+          style={{ cursor: "pointer", pointerEvents: "stroke" }}
+          onClick={() => onEdgeClick?.(edge.id)}
+        />
         <path
           d={path}
           fill="none"
@@ -152,6 +167,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
           strokeWidth={strokeWidth}
           strokeDasharray={strokeDasharray}
           markerEnd={markerEnd}
+          style={{ pointerEvents: "none" }}
         />
         {/* Animated overlay when animation is enabled */}
         {animateFlow && !showAsRed && !showAsBlue && (

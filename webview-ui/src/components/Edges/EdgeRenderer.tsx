@@ -28,6 +28,8 @@ export interface EdgeRendererProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
   selectedNodeId?: string;
+  highlightedPath?: Set<string>;
+  onEdgeClick?: (edgeId: string) => void;
 }
 
 /**
@@ -37,6 +39,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
   nodes,
   edges,
   selectedNodeId,
+  highlightedPath,
+  onEdgeClick,
 }) => {
   const { animateFlow } = useTheme();
 
@@ -70,7 +74,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
   }, [handledByBranches, handledByMerges]);
 
   return (
-    <svg className="absolute top-0 left-0 w-1 h-1 overflow-visible pointer-events-none">
+    <svg className="absolute top-0 left-0 w-1 h-1 overflow-visible">
       <EdgeMarkers />
       {animateFlow && <FlowAnimation />}
       <BranchLines
@@ -78,6 +82,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
         edges={edges}
         selectedNodeId={selectedNodeId}
         animateFlow={animateFlow}
+        highlightedPath={highlightedPath}
+        onEdgeClick={onEdgeClick}
       />
       <MergeLines
         nodes={nodes}
@@ -85,6 +91,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
         handledEdges={handledByBranches}
         selectedNodeId={selectedNodeId}
         animateFlow={animateFlow}
+        highlightedPath={highlightedPath}
+        onEdgeClick={onEdgeClick}
       />
       <DirectEdges
         nodes={nodes}
@@ -92,6 +100,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
         handledEdges={allHandledEdges}
         selectedNodeId={selectedNodeId}
         animateFlow={animateFlow}
+        highlightedPath={highlightedPath}
+        onEdgeClick={onEdgeClick}
       />
     </svg>
   );

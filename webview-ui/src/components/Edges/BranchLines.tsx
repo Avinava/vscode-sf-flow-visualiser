@@ -41,6 +41,8 @@ export interface BranchLinesProps {
   edges: FlowEdge[];
   selectedNodeId?: string;
   animateFlow?: boolean;
+  highlightedPath?: Set<string>;
+  onEdgeClick?: (edgeId: string) => void;
 }
 
 /**
@@ -139,6 +141,8 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
   edges,
   selectedNodeId,
   animateFlow,
+  highlightedPath,
+  onEdgeClick,
 }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const branchLines = calculateBranchLines(nodes, edges);
@@ -151,7 +155,13 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
     const srcCenterX = srcNode.x + srcNode.width / 2;
     const srcBottomY = srcNode.y + srcNode.height;
 
+    // Check if any branch edges are in the highlighted path
+    const anyBranchInPath = bl.branches.some((b) =>
+      highlightedPath?.has(b.edge.id)
+    );
+
     const branchHighlighted =
+      anyBranchInPath ||
       selectedNodeId === bl.sourceId ||
       bl.branches.some((b) => b.edge.target === selectedNodeId);
 
@@ -162,7 +172,7 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
       ? CONNECTOR_WIDTHS.highlight
       : CONNECTOR_WIDTHS.default;
 
-    // Horizontal branch line
+    // Horizontal branch line - full line for visual
     const horizontalPath = ConnectorPathService.createHorizontalLine(
       bl.branchLineY,
       bl.minX,
@@ -177,17 +187,39 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
         strokeWidth={branchStrokeWidth}
       />
     );
-    {
-      /* Animated overlay for horizontal branch line */
-    }
+
+    // Animated overlays - split into left and right from center
     if (animateFlow) {
-      elements.push(
-        <path
-          key={`branch-line-anim-${bl.sourceId}`}
-          d={horizontalPath}
-          className="flow-animated-path"
-        />
-      );
+      // Left segment (center to left) - animate leftward (reverse)
+      if (bl.minX < srcCenterX) {
+        const leftPath = ConnectorPathService.createHorizontalLine(
+          bl.branchLineY,
+          srcCenterX,
+          bl.minX
+        );
+        elements.push(
+          <path
+            key={`branch-line-anim-left-${bl.sourceId}`}
+            d={leftPath}
+            className="flow-animated-path"
+          />
+        );
+      }
+      // Right segment (center to right) - animate rightward (forward)
+      if (bl.maxX > srcCenterX) {
+        const rightPath = ConnectorPathService.createHorizontalLine(
+          bl.branchLineY,
+          srcCenterX,
+          bl.maxX
+        );
+        elements.push(
+          <path
+            key={`branch-line-anim-right-${bl.sourceId}`}
+            d={rightPath}
+            className="flow-animated-path"
+          />
+        );
+      }
     }
 
     // Vertical stem from source
@@ -220,8 +252,11 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
 
     // Branch drops to targets
     bl.branches.forEach(({ edge, branchX, targetX, targetY }) => {
+      const isPathHighlighted = highlightedPath?.has(edge.id) ?? false;
       const dropHighlighted =
-        branchHighlighted || edge.target === selectedNodeId;
+        isPathHighlighted ||
+        branchHighlighted ||
+        edge.target === selectedNodeId;
       const dropStrokeColor = dropHighlighted
         ? CONNECTOR_COLORS.highlight
         : CONNECTOR_COLORS.default;
@@ -240,15 +275,31 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
 
       elements.push(
         <g key={`branch-drop-${edge.id}`}>
+          {/* Invisible hit area for easier clicking */}
+          <path
+            d={path}
+            fill="none"
+            stroke="transparent"
+            strokeWidth={16}
+            style={{ cursor: "pointer", pointerEvents: "stroke" }}
+            onClick={() => onEdgeClick?.(edge.id)}
+          />
           <path
             d={path}
             fill="none"
             stroke={dropStrokeColor}
             strokeWidth={dropStrokeWidth}
             markerEnd={dropMarker}
+            style={{ pointerEvents: "none" }}
           />
           {/* Animated overlay for branch drop */}
-          {animateFlow && <path d={path} className="flow-animated-path" />}
+          {animateFlow && (
+            <path
+              d={path}
+              className="flow-animated-path"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
           {edge.label && (
             <EdgeLabel
               x={branchX}

@@ -21,12 +21,21 @@ export const FlowAnimation: React.FC = () => {
     <defs>
       <style>
         {`
-          @keyframes flow-dash {
+          @keyframes flow-dash-forward {
             from {
-              stroke-dashoffset: 24;
+              stroke-dashoffset: 0;
             }
             to {
+              stroke-dashoffset: -24;
+            }
+          }
+          
+          @keyframes flow-dash-reverse {
+            from {
               stroke-dashoffset: 0;
+            }
+            to {
+              stroke-dashoffset: 24;
             }
           }
           
@@ -37,7 +46,18 @@ export const FlowAnimation: React.FC = () => {
             stroke-linecap: round;
             fill: none;
             opacity: 0.8;
-            animation: flow-dash 0.6s linear infinite;
+            animation: flow-dash-forward 0.6s linear infinite;
+            pointer-events: none;
+          }
+          
+          .flow-animated-path-reverse {
+            stroke: ${animationColor};
+            stroke-width: 3;
+            stroke-dasharray: 6 18;
+            stroke-linecap: round;
+            fill: none;
+            opacity: 0.8;
+            animation: flow-dash-reverse 0.6s linear infinite;
             pointer-events: none;
           }
         `}

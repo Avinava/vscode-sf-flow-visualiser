@@ -10,6 +10,7 @@ import {
   useFlowParser,
   useCanvasInteraction,
   useNodeSelection,
+  useEdgeSelection,
 } from "./hooks";
 
 // Import context
@@ -89,14 +90,39 @@ const AppContent: React.FC = () => {
   // Node selection hook
   const { selectedNode, selectNode, clearSelection } = useNodeSelection();
 
+  // Edge selection hook for path highlighting
+  const { highlightedPath, selectEdge, clearEdgeSelection } = useEdgeSelection({
+    nodes: parsedData.nodes,
+    edges: parsedData.edges,
+  });
+
+  // Handle node selection - clear edge selection when selecting a node
+  const handleSelectNode = useCallback(
+    (node: typeof selectedNode) => {
+      clearEdgeSelection();
+      selectNode(node);
+    },
+    [clearEdgeSelection, selectNode]
+  );
+
+  // Handle edge click - clear node selection when selecting an edge
+  const handleEdgeClick = useCallback(
+    (edgeId: string) => {
+      clearSelection();
+      selectEdge(edgeId);
+    },
+    [clearSelection, selectEdge]
+  );
+
   // Handle new flow from VS Code - reset canvas state
   const handleLoadXml = useCallback(
     (xml: string, newFileName?: string) => {
       loadFlow(xml, newFileName);
       clearSelection();
+      clearEdgeSelection();
       resetView();
     },
-    [loadFlow, clearSelection, resetView]
+    [loadFlow, clearSelection, clearEdgeSelection, resetView]
   );
 
   // VS Code messaging hook - must be last to use other callbacks
@@ -147,6 +173,8 @@ const AppContent: React.FC = () => {
               nodes={parsedData.nodes}
               edges={parsedData.edges}
               selectedNodeId={selectedNode?.id}
+              highlightedPath={highlightedPath}
+              onEdgeClick={handleEdgeClick}
             />
 
             {/* Nodes */}
@@ -157,7 +185,7 @@ const AppContent: React.FC = () => {
                 isSelected={selectedNode?.id === node.id}
                 isGoToTarget={goToTargetCounts.has(node.id)}
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
-                onSelect={selectNode}
+                onSelect={handleSelectNode}
               />
             ))}
           </FlowCanvas>

@@ -32,6 +32,8 @@ export interface MergeLinesProps {
   handledEdges: Set<string>;
   selectedNodeId?: string;
   animateFlow?: boolean;
+  highlightedPath?: Set<string>;
+  onEdgeClick?: (edgeId: string) => void;
 }
 
 /**
@@ -130,12 +132,20 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
   handledEdges,
   selectedNodeId,
   animateFlow,
+  highlightedPath,
+  onEdgeClick,
 }) => {
   const mergeLines = calculateMergeLines(nodes, edges, handledEdges);
   const elements: JSX.Element[] = [];
 
   mergeLines.forEach((ml) => {
+    // Check if any source edges are in the highlighted path
+    const anySourceInPath = ml.sources.some((s) =>
+      highlightedPath?.has(s.edge.id)
+    );
+
     const mergeHighlighted =
+      anySourceInPath ||
       selectedNodeId === ml.targetId ||
       ml.sources.some((s) => s.edge.source === selectedNodeId);
 
@@ -146,7 +156,7 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
       ? CONNECTOR_WIDTHS.highlight
       : CONNECTOR_WIDTHS.default;
 
-    // Horizontal merge line
+    // Horizontal merge line - full line for visual
     const horizontalPath = ConnectorPathService.createHorizontalLine(
       ml.mergeLineY,
       ml.minX,
@@ -161,17 +171,39 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
         strokeWidth={mergeStrokeWidth}
       />
     );
-    {
-      /* Animated overlay for horizontal merge line */
-    }
+
+    // Animated overlays - split into left and right, flowing INWARD to center
     if (animateFlow) {
-      elements.push(
-        <path
-          key={`merge-line-anim-${ml.targetId}`}
-          d={horizontalPath}
-          className="flow-animated-path"
-        />
-      );
+      // Left segment (left to center) - animate rightward (forward direction since path goes left-to-right)
+      if (ml.minX < ml.centerX) {
+        const leftPath = ConnectorPathService.createHorizontalLine(
+          ml.mergeLineY,
+          ml.minX,
+          ml.centerX
+        );
+        elements.push(
+          <path
+            key={`merge-line-anim-left-${ml.targetId}`}
+            d={leftPath}
+            className="flow-animated-path"
+          />
+        );
+      }
+      // Right segment (right to center) - animate leftward (reverse since path goes center-to-right but we want right-to-center)
+      if (ml.maxX > ml.centerX) {
+        const rightPath = ConnectorPathService.createHorizontalLine(
+          ml.mergeLineY,
+          ml.maxX,
+          ml.centerX
+        );
+        elements.push(
+          <path
+            key={`merge-line-anim-right-${ml.targetId}`}
+            d={rightPath}
+            className="flow-animated-path"
+          />
+        );
+      }
     }
 
     // Vertical drop to target
@@ -206,7 +238,9 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
     // Source connections to merge line
     ml.sources.forEach(({ edge, x, y }) => {
       const dx = ml.centerX - x;
-      const sourceHighlighted = edge.source === selectedNodeId;
+      const isPathHighlighted = highlightedPath?.has(edge.id) ?? false;
+      const sourceHighlighted =
+        isPathHighlighted || edge.source === selectedNodeId;
       const sourceStrokeColor = sourceHighlighted
         ? CONNECTOR_COLORS.highlight
         : CONNECTOR_COLORS.default;
@@ -227,26 +261,33 @@ export const MergeLines: React.FC<MergeLinesProps> = ({
       }
 
       elements.push(
-        <path
-          key={`merge-drop-${edge.id}`}
-          d={path}
-          fill="none"
-          stroke={sourceStrokeColor}
-          strokeWidth={sourceStrokeWidth}
-        />
-      );
-      {
-        /* Animated overlay for source connection */
-      }
-      if (animateFlow) {
-        elements.push(
+        <g key={`merge-drop-${edge.id}`}>
+          {/* Invisible hit area for easier clicking */}
           <path
-            key={`merge-drop-anim-${edge.id}`}
             d={path}
-            className="flow-animated-path"
+            fill="none"
+            stroke="transparent"
+            strokeWidth={16}
+            style={{ cursor: "pointer", pointerEvents: "stroke" }}
+            onClick={() => onEdgeClick?.(edge.id)}
           />
-        );
-      }
+          <path
+            d={path}
+            fill="none"
+            stroke={sourceStrokeColor}
+            strokeWidth={sourceStrokeWidth}
+            style={{ pointerEvents: "none" }}
+          />
+          {/* Animated overlay for source connection */}
+          {animateFlow && (
+            <path
+              d={path}
+              className="flow-animated-path"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+        </g>
+      );
     });
   });
 
