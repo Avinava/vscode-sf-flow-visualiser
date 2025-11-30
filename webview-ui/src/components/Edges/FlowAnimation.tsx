@@ -40,6 +40,27 @@ export const FlowAnimation: React.FC = () => {
         </feMerge>
       </filter>
 
+      {/* Subtle glow filter for loop-back spark */}
+      <filter
+        id="loop-spark-glow"
+        x="-100%"
+        y="-100%"
+        width="300%"
+        height="300%"
+      >
+        <feGaussianBlur stdDeviation="2" result="blur" />
+        <feFlood
+          floodColor={animationColor}
+          floodOpacity="0.6"
+          result="color"
+        />
+        <feComposite in="color" in2="blur" operator="in" result="glow" />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+
       <style>
         {`
           @keyframes flow-dash-forward {
