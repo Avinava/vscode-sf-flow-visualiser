@@ -55,11 +55,9 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
 - 💾 **Persistent Preferences** - Theme and animation settings are remembered across sessions
 
-### What's New in 1.1.2
+### What's New in 1.1.3
 
-- Loop connectors keep their animated “flow bead” perfectly aligned with For-Each branch entries for a grounded feel
-- Loop branch lines now route horizontally before dropping, removing the mid-air kink on branch transitions
-- Fault connectors stay horizontal longer, so short fault hops render as crisp straight shots off the right edge of a node
+- Scheduled path connectors ("Run Immediately" / "Run Asynchronously") from Start nodes now route cleanly without the extra vertical drop that broke the visual flow
 
 ## 📋 Supported Flow Elements
 

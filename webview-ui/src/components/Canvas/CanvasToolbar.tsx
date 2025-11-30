@@ -19,6 +19,7 @@ import {
   Pause,
   Eye,
   EyeOff,
+  Workflow,
 } from "lucide-react";
 import { useTheme } from "../../context";
 
@@ -83,20 +84,25 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button
           onClick={onToggleAutoLayout}
-          className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors
+          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
             ${autoLayoutEnabled ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
+          title="Auto-Layout"
         >
-          <Layout size={14} />
-          Auto-Layout
+          <Layout size={14} className="flex-shrink-0" />
+          <span className="hidden md:inline">Auto-Layout</span>
         </button>
         <button
           onClick={onToggleAutoOpen}
-          className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors
+          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
             ${autoOpenEnabled ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
-          title="Automatically open Flow Viewer when viewing flow files"
+          title="Auto-Open Flow Viewer"
         >
-          {autoOpenEnabled ? <Eye size={14} /> : <EyeOff size={14} />}
-          Auto-Open
+          {autoOpenEnabled ? (
+            <Eye size={14} className="flex-shrink-0" />
+          ) : (
+            <EyeOff size={14} className="flex-shrink-0" />
+          )}
+          <span className="hidden md:inline">Auto-Open</span>
         </button>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button
@@ -184,6 +190,26 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
               </div>
             </div>
           )}
+        </div>
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
+        {/* Extension branding - inspired by logo colors */}
+        <div className="group relative flex items-center">
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md cursor-default transition-all duration-200
+              hover:bg-[#3d7a9e]/10 dark:hover:bg-[#3d7a9e]/20"
+          >
+            {/* Logo-inspired icon with flow pattern colors */}
+            <div className="flex items-center justify-center w-5 h-5 rounded bg-[#3d7a9e] dark:bg-[#4a8bb0]">
+              <Workflow size={12} className="text-white" strokeWidth={2.5} />
+            </div>
+            {/* Short name that expands on hover */}
+            <span className="text-xs font-semibold text-[#3d7a9e] dark:text-[#6ba3c4] whitespace-nowrap overflow-hidden transition-all duration-200 max-w-[32px] group-hover:max-w-[120px]">
+              <span className="group-hover:hidden">SFFV</span>
+              <span className="hidden group-hover:inline">
+                sf flow visualizer
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 

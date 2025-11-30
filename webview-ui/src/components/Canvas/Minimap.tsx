@@ -6,6 +6,7 @@
  */
 
 import React, { useMemo, useCallback, useRef } from "react";
+import { Workflow } from "lucide-react";
 import type { FlowNode } from "../../types";
 import { NODE_CONFIG } from "../../constants";
 import { useTheme } from "../../context";
@@ -156,97 +157,112 @@ export const Minimap: React.FC<MinimapProps> = ({
   if (nodes.length === 0) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className={`absolute bottom-4 right-4 z-10 rounded-lg shadow-lg border overflow-hidden cursor-crosshair
-        ${isDark ? "bg-slate-800/90 border-slate-700" : "bg-white/90 border-slate-200"}`}
-      style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
-      onClick={handleClick}
-    >
-      {/* Flow nodes as small rectangles */}
-      <svg
-        width={MINIMAP_WIDTH}
-        height={MINIMAP_HEIGHT}
-        className="absolute inset-0"
+    <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-1.5">
+      {/* Minimap container */}
+      <div
+        ref={containerRef}
+        className={`rounded-lg shadow-lg border overflow-hidden cursor-crosshair
+          ${isDark ? "bg-slate-800/90 border-slate-700" : "bg-white/90 border-slate-200"}`}
+        style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
+        onClick={handleClick}
       >
-        {/* Background grid hint */}
-        <defs>
-          <pattern
-            id="minimap-grid"
-            width="10"
-            height="10"
-            patternUnits="userSpaceOnUse"
-          >
-            <circle
-              cx="5"
-              cy="5"
-              r="0.5"
-              fill={isDark ? "#334155" : "#e2e8f0"}
-            />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#minimap-grid)" />
-
-        {/* Node rectangles */}
-        {nodes.map((node) => {
-          const config = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
-          const pos = transformToMinimap(node.x, node.y);
-          const nodeW = Math.max(node.width * minimapScale, 3);
-          const nodeH = Math.max(node.height * minimapScale, 2);
-
-          // END nodes as circles
-          if (node.type === "END") {
-            return (
+        {/* Flow nodes as small rectangles */}
+        <svg
+          width={MINIMAP_WIDTH}
+          height={MINIMAP_HEIGHT}
+          className="absolute inset-0"
+        >
+          {/* Background grid hint */}
+          <defs>
+            <pattern
+              id="minimap-grid"
+              width="10"
+              height="10"
+              patternUnits="userSpaceOnUse"
+            >
               <circle
-                key={node.id}
-                cx={pos.x + nodeW / 2}
-                cy={pos.y + nodeH / 2}
-                r={2}
-                fill="#ef4444"
+                cx="5"
+                cy="5"
+                r="0.5"
+                fill={isDark ? "#334155" : "#e2e8f0"}
               />
-            );
-          }
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#minimap-grid)" />
 
-          // DECISION/WAIT as diamonds
-          if (node.type === "DECISION" || node.type === "WAIT") {
-            const cx = pos.x + nodeW / 2;
-            const cy = pos.y + nodeH / 2;
-            const size = 3;
+          {/* Node rectangles */}
+          {nodes.map((node) => {
+            const config = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
+            const pos = transformToMinimap(node.x, node.y);
+            const nodeW = Math.max(node.width * minimapScale, 3);
+            const nodeH = Math.max(node.height * minimapScale, 2);
+
+            // END nodes as circles
+            if (node.type === "END") {
+              return (
+                <circle
+                  key={node.id}
+                  cx={pos.x + nodeW / 2}
+                  cy={pos.y + nodeH / 2}
+                  r={2}
+                  fill="#ef4444"
+                />
+              );
+            }
+
+            // DECISION/WAIT as diamonds
+            if (node.type === "DECISION" || node.type === "WAIT") {
+              const cx = pos.x + nodeW / 2;
+              const cy = pos.y + nodeH / 2;
+              const size = 3;
+              return (
+                <polygon
+                  key={node.id}
+                  points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
+                  fill={config.color}
+                />
+              );
+            }
+
             return (
-              <polygon
+              <rect
                 key={node.id}
-                points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
+                x={pos.x}
+                y={pos.y}
+                width={nodeW}
+                height={nodeH}
+                rx={1}
                 fill={config.color}
+                opacity={0.8}
               />
             );
-          }
+          })}
 
-          return (
-            <rect
-              key={node.id}
-              x={pos.x}
-              y={pos.y}
-              width={nodeW}
-              height={nodeH}
-              rx={1}
-              fill={config.color}
-              opacity={0.8}
-            />
-          );
-        })}
+          {/* Viewport indicator */}
+          <rect
+            x={viewportRect.x}
+            y={viewportRect.y}
+            width={viewportRect.width}
+            height={viewportRect.height}
+            fill={isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)"}
+            stroke={isDark ? "#60a5fa" : "#3b82f6"}
+            strokeWidth={1.5}
+            rx={2}
+          />
+        </svg>
+      </div>
 
-        {/* Viewport indicator */}
-        <rect
-          x={viewportRect.x}
-          y={viewportRect.y}
-          width={viewportRect.width}
-          height={viewportRect.height}
-          fill={isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)"}
-          stroke={isDark ? "#60a5fa" : "#3b82f6"}
-          strokeWidth={1.5}
-          rx={2}
-        />
-      </svg>
+      {/* Branding */}
+      <div
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-semibold
+          ${isDark ? "bg-slate-800/80 text-slate-300 border border-slate-700" : "bg-white/80 text-slate-600 border border-slate-200"}`}
+        title="SF Flow Visualizer"
+      >
+        <div className="flex items-center justify-center w-4 h-4 rounded bg-[#3d7a9e]">
+          <Workflow size={10} className="text-white" strokeWidth={2.5} />
+        </div>
+        <span className="text-[#3d7a9e] dark:text-[#6ba3c4]">sf flow visualizer</span>
+      </div>
     </div>
   );
 };
