@@ -14,7 +14,7 @@
 // --alc-element-card-width: 285px
 // ============================================================================
 
-export const NODE_WIDTH = 240; // Slightly wider to match SF better
+export const NODE_WIDTH = 280; // Wider to prevent text truncation
 export const NODE_HEIGHT = 56;
 export const NODE_ICON_SIZE = 48;
 
