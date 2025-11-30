@@ -158,7 +158,8 @@ function findLoopCycles(
     const branchDropPath = ConnectorPathService.createBranchDropPath(
       forEachBranchX,
       branchLineY,
-      { x: firstNodeCenterX, y: firstNodeTopY }
+      { x: firstNodeCenterX, y: firstNodeTopY },
+      { dropStrategy: "horizontal-first" }
     );
     pathD = appendPathSegment(pathD, branchDropPath);
     totalLength +=

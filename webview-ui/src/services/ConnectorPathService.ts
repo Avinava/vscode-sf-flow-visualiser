@@ -28,6 +28,10 @@ export interface OrthogonalPathOptions extends PathOptions {
   bendStrategy?: "near-target" | "near-source" | "midpoint";
 }
 
+export interface BranchDropOptions extends PathOptions {
+  dropStrategy?: "auto" | "horizontal-first" | "vertical-first";
+}
+
 export interface FaultPathOptions extends PathOptions {
   faultIndex?: number;
 }
@@ -243,17 +247,34 @@ export class ConnectorPathService {
     branchX: number,
     branchY: number,
     tgt: Point,
-    options: PathOptions = {}
+    options: BranchDropOptions = {}
   ): string {
-    const { cornerRadius = DEFAULT_CORNER_RADIUS } = options;
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, dropStrategy = "auto" } =
+      options;
     const dx = tgt.x - branchX;
+    const dy = tgt.y - branchY;
 
-    // Straight vertical drop if aligned
+    // Straight vertical drop if aligned horizontally
     if (Math.abs(dx) < 5) {
       return `M ${branchX} ${branchY} L ${tgt.x} ${tgt.y}`;
     }
 
-    // Orthogonal routing with corners
+    const resolvedStrategy =
+      dropStrategy === "auto" ? "vertical-first" : dropStrategy;
+
+    if (resolvedStrategy === "horizontal-first") {
+      const horizontalSign = dx > 0 ? 1 : -1;
+      const verticalSign = dy >= 0 ? 1 : -1;
+      const horizontalCornerX = tgt.x - horizontalSign * cornerRadius;
+      const verticalCornerY = branchY + verticalSign * cornerRadius;
+
+      return `M ${branchX} ${branchY}
+              L ${horizontalCornerX} ${branchY}
+              Q ${tgt.x} ${branchY}, ${tgt.x} ${verticalCornerY}
+              L ${tgt.x} ${tgt.y}`;
+    }
+
+    // Default vertical-first orthogonal routing
     return this.createOrthogonalPath({ x: branchX, y: branchY }, tgt, {
       cornerRadius,
     });

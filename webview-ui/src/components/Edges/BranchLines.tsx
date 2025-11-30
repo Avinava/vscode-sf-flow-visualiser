@@ -267,10 +267,16 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
         ? "url(#arrow-highlight)"
         : "url(#arrow)";
 
+      const dropStrategy =
+        srcNode.type === "LOOP" && edge.type === "loop-next"
+          ? "horizontal-first"
+          : "auto";
+
       const path = ConnectorPathService.createBranchDropPath(
         branchX,
         bl.branchLineY,
-        { x: targetX, y: targetY }
+        { x: targetX, y: targetY },
+        { dropStrategy }
       );
 
       elements.push(
