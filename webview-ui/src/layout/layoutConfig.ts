@@ -6,6 +6,16 @@
  */
 
 import type { LayoutConfig } from "../types";
+import {
+  ELEMENT_CARD_WIDTH,
+  GRID_H_GAP,
+  GRID_V_GAP,
+  NODE_HEIGHT,
+  NODE_ICON_SIZE,
+  NODE_WIDTH,
+  START_X,
+  START_Y,
+} from "../constants/dimensions";
 
 // ============================================================================
 // DEFAULT LAYOUT CONFIGURATION
@@ -15,11 +25,11 @@ import type { LayoutConfig } from "../types";
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   node: {
     icon: {
-      w: 48,
-      h: 48,
+      w: NODE_ICON_SIZE,
+      h: NODE_ICON_SIZE,
     },
-    width: 240, // Updated to match new NODE_WIDTH
-    height: 56,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
   },
   connector: {
     icon: {
@@ -27,12 +37,12 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
     },
   },
   grid: {
-    hGap: 60, // Reduced horizontal gap for tighter layout
-    vGap: 70, // Adjusted vertical gap
+    hGap: GRID_H_GAP, // Reduced horizontal gap for tighter layout
+    vGap: GRID_V_GAP, // Adjusted vertical gap
   },
   start: {
-    x: 800, // Canvas center X
-    y: 80, // Canvas top Y
+    x: START_X, // Canvas center X
+    y: START_Y, // Canvas top Y
   },
 };
 
@@ -41,7 +51,7 @@ export const CARD_LAYOUT_CONFIG: LayoutConfig = {
   ...DEFAULT_LAYOUT_CONFIG,
   node: {
     ...DEFAULT_LAYOUT_CONFIG.node,
-    width: 285,
+    width: ELEMENT_CARD_WIDTH,
   },
 };
 
