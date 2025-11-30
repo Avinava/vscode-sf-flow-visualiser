@@ -126,8 +126,8 @@ export class ConnectorPathService {
   ): string {
     const { cornerRadius = DEFAULT_CORNER_RADIUS, faultIndex = 0 } = options;
 
-    // Check if nearly horizontal
-    if (Math.abs(tgt.y - src.y) < 15) {
+    // Check if nearly horizontal (allow small offsets to stay straight)
+    if (Math.abs(tgt.y - src.y) < 25) {
       return this.createStraightPath(src, tgt);
     }
 

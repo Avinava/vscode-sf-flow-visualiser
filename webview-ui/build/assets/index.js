@@ -325,7 +325,7 @@ Error generating stack: `+o.message+`
             Q ${t.x} ${a}, ${t.x+i*l} ${a}
             L ${n.x-i*l} ${a}
             Q ${n.x} ${a}, ${n.x} ${a+l}
-            L ${n.x} ${n.y}`}static createFaultPath(t,n,r={}){const{cornerRadius:l=Wr,faultIndex:o=0}=r;if(Math.abs(n.y-t.y)<15)return this.createStraightPath(t,n);const s=Jh,u=o*25,i=40,a=n.x-t.x,d=s+u;let p=d;if(a>d+i){const y=a-d-i,x=d+Math.min(y*.75,200);p=Math.min(x,a-i)}const f=Math.max(t.x+s*.5,Math.min(t.x+p,n.x-i));return n.y>t.y?`M ${t.x} ${t.y} 
+            L ${n.x} ${n.y}`}static createFaultPath(t,n,r={}){const{cornerRadius:l=Wr,faultIndex:o=0}=r;if(Math.abs(n.y-t.y)<25)return this.createStraightPath(t,n);const s=Jh,u=o*25,i=40,a=n.x-t.x,d=s+u;let p=d;if(a>d+i){const y=a-d-i,x=d+Math.min(y*.75,200);p=Math.min(x,a-i)}const f=Math.max(t.x+s*.5,Math.min(t.x+p,n.x-i));return n.y>t.y?`M ${t.x} ${t.y} 
               L ${f-l} ${t.y}
               Q ${f} ${t.y}, ${f} ${t.y+l}
               L ${f} ${n.y-l}
