@@ -22,6 +22,15 @@ export interface DirectEdgesProps {
 }
 
 /**
+ * Renders a subtle fault path animation - single traveling red dot
+ */
+const FaultPathAnimation: React.FC<{ path: string }> = ({ path }) => (
+  <circle r="3" fill={CONNECTOR_COLORS.fault} filter="url(#fault-spark-glow)">
+    <animateMotion dur="2s" repeatCount="indefinite" path={path} />
+  </circle>
+);
+
+/**
  * Renders edges not handled by branch lines or merge lines
  */
 export const DirectEdges: React.FC<DirectEdgesProps> = ({
@@ -135,7 +144,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
 
     if (showAsRed) {
       strokeColor = CONNECTOR_COLORS.fault;
-      markerEnd = "url(#arrow-red)";
+      markerEnd = animateFlow ? "url(#arrow-red-animated)" : "url(#arrow-red)";
       strokeDasharray = "6,4";
     } else if (showAsBlue) {
       strokeColor = CONNECTOR_COLORS.goto;
@@ -180,6 +189,8 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         {animateFlow && !showAsRed && !showAsBlue && (
           <path d={path} className="flow-animated-path" />
         )}
+        {/* Fault path animations - subtle glow and traveling spark */}
+        {animateFlow && showAsRed && <FaultPathAnimation path={path} />}
         {edge.label && (
           <EdgeLabel
             x={labelX}
