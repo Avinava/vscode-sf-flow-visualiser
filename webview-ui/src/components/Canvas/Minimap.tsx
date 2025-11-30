@@ -244,7 +244,9 @@ export const Minimap: React.FC<MinimapProps> = ({
             y={viewportRect.y}
             width={viewportRect.width}
             height={viewportRect.height}
-            fill={isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)"}
+            fill={
+              isDark ? "rgba(59, 130, 246, 0.15)" : "rgba(59, 130, 246, 0.1)"
+            }
             stroke={isDark ? "#60a5fa" : "#3b82f6"}
             strokeWidth={1.5}
             rx={2}
@@ -261,7 +263,9 @@ export const Minimap: React.FC<MinimapProps> = ({
         <div className="flex items-center justify-center w-4 h-4 rounded bg-[#3d7a9e]">
           <Workflow size={10} className="text-white" strokeWidth={2.5} />
         </div>
-        <span className="text-[#3d7a9e] dark:text-[#6ba3c4]">sf flow visualizer</span>
+        <span className="text-[#3d7a9e] dark:text-[#6ba3c4]">
+          sf flow visualizer
+        </span>
       </div>
     </div>
   );
