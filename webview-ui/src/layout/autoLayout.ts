@@ -19,6 +19,7 @@
  */
 
 import type { FlowNode, FlowEdge, LayoutConfig, Geometry } from "../types";
+import { getBranchEdgesForNode, sortBranchEdges } from "../utils/graph";
 
 // ============================================================================
 // DEFAULT LAYOUT CONFIGURATION
@@ -550,43 +551,19 @@ export function autoLayout(
     // Handle branching nodes (Decision, Wait, or Start with multiple paths)
     const isBranchingStart = nodeType === "START" && outs.length > 1;
     if (nodeType === "DECISION" || nodeType === "WAIT" || isBranchingStart) {
-      const branchTargets = outs.map((e) => e.target);
+      const branchEdges = sortBranchEdges(
+        node,
+        getBranchEdgesForNode(node, outs)
+      );
+      const branchTargets = branchEdges.map((e) => e.target);
       const mergePoint = findMergePointForBranches(
         branchTargets,
         outgoing,
         nodeMap
       );
 
-      // Sort branches: rules/immediate on left, default/async on right (Salesforce style)
-      const sortedOuts = [...outs].sort((a, b) => {
-        // For START nodes: "Run Immediately" on left, "Run Asynchronously" on right
-        const aIsAsync =
-          a.label?.toLowerCase().includes("asynchron") ||
-          a.label?.toLowerCase().includes("scheduled") ||
-          a.id?.includes("-sched");
-        const bIsAsync =
-          b.label?.toLowerCase().includes("asynchron") ||
-          b.label?.toLowerCase().includes("scheduled") ||
-          b.id?.includes("-sched");
-        if (aIsAsync && !bIsAsync) return 1;
-        if (!aIsAsync && bIsAsync) return -1;
-
-        // For DECISION/WAIT: rules on left, default on right
-        const aIsDefault =
-          a.label?.toLowerCase().includes("default") ||
-          a.label === "Other" ||
-          a.id?.includes("-def");
-        const bIsDefault =
-          b.label?.toLowerCase().includes("default") ||
-          b.label === "Other" ||
-          b.id?.includes("-def");
-        if (aIsDefault && !bIsDefault) return 1;
-        if (!aIsDefault && bIsDefault) return -1;
-        return 0;
-      });
-
       // Calculate widths of each branch
-      const branchWidths = sortedOuts.map((e) => {
+      const branchWidths = branchEdges.map((e) => {
         const width = calculateSubtreeWidth(
           e.target,
           nodeMap,
@@ -604,7 +581,7 @@ export function autoLayout(
       let firstBranchCenterX = centerX;
       let lastBranchCenterX = centerX;
 
-      sortedOuts.forEach((edge, idx) => {
+      branchEdges.forEach((edge, idx) => {
         const branchWidth = branchWidths[idx];
         const branchCenterX = currentX + ((branchWidth - 1) * COL_WIDTH) / 2;
 

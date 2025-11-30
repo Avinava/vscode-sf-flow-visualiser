@@ -25,6 +25,11 @@ import {
   CONNECTOR_COLORS,
   CONNECTOR_WIDTHS,
 } from "../constants";
+import {
+  getBranchEdgesForNode,
+  isBranchingNode as isBranchingNodeHelper,
+  sortBranchEdges,
+} from "../utils/graph";
 
 // ============================================================================
 // TYPES
@@ -33,6 +38,7 @@ import {
 interface EdgeRendererProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  selectedNodeId?: string;
 }
 
 // EdgeRenderInfo interface available for future type-safe edge rendering
@@ -112,6 +118,7 @@ interface EdgeLabelProps {
   label: string;
   isFault?: boolean;
   isGoTo?: boolean;
+  isHighlighted?: boolean;
 }
 
 const EdgeLabel: React.FC<EdgeLabelProps> = ({
@@ -120,6 +127,7 @@ const EdgeLabel: React.FC<EdgeLabelProps> = ({
   label,
   isFault,
   isGoTo,
+  isHighlighted,
 }) => (
   <foreignObject
     x={x - 85}
@@ -135,7 +143,9 @@ const EdgeLabel: React.FC<EdgeLabelProps> = ({
             ? "bg-red-500 text-white border-red-600"
             : isGoTo
               ? "bg-blue-50 text-blue-600 border-blue-200"
-              : "bg-white text-slate-600 border-slate-200"
+              : isHighlighted
+                ? "bg-blue-50 text-blue-700 border-blue-300 shadow"
+                : "bg-white text-slate-600 border-slate-200"
         }`}
       style={{ width: "fit-content", margin: "0 auto", maxWidth: "160px" }}
     >
@@ -308,74 +318,21 @@ function calculateBranchLines(
   // Find branching nodes (DECISION, WAIT, LOOP, or START with multiple paths)
   nodes.forEach((srcNode) => {
     const srcEdges = edgesBySource.get(srcNode.id) || [];
+    let branchEdges = sortBranchEdges(
+      srcNode,
+      getBranchEdgesForNode(srcNode, srcEdges)
+    );
 
-    // For LOOP nodes, include both loop-next and loop-end as branches
-    // For other nodes, exclude loop-end and fault edges
-    let branchEdges: FlowEdge[];
+    const branching = isBranchingNodeHelper(srcNode, branchEdges.length);
+    if (!branching) return;
 
-    if (srcNode.type === "LOOP") {
-      // For loops: include loop-next (For Each) and loop-end (After Last)
-      branchEdges = srcEdges.filter(
-        (e) => e.type === "loop-next" || e.type === "loop-end"
-      );
-    } else {
-      branchEdges = srcEdges.filter(
-        (e) =>
-          e.type !== "fault" && e.type !== "fault-end" && e.type !== "loop-end"
-      );
-    }
-
-    // Check if this is a branching node
-    const isBranchingNode =
-      srcNode.type === "DECISION" ||
-      srcNode.type === "WAIT" ||
-      srcNode.type === "LOOP" ||
-      (srcNode.type === "START" && branchEdges.length > 1);
-
-    if (!isBranchingNode) {
+    if (srcNode.type !== "LOOP" && branchEdges.length < 2) {
       return;
     }
 
-    if (branchEdges.length < 2 && srcNode.type !== "LOOP") {
-      return;
-    }
-
-    // For LOOP nodes with only one branch, skip branch line rendering
     if (srcNode.type === "LOOP" && branchEdges.length < 2) {
       return;
     }
-
-    // Sort branches: rules/immediate on left, default/async on right (Salesforce style)
-    branchEdges = [...branchEdges].sort((a, b) => {
-      // For LOOP nodes: "For Each" (loop-next) on left, "After Last" (loop-end) on right
-      if (a.type === "loop-end" && b.type !== "loop-end") return 1;
-      if (a.type !== "loop-end" && b.type === "loop-end") return -1;
-
-      // For START nodes: "Run Immediately" on left, "Run Asynchronously" on right
-      const aIsAsync =
-        a.label?.toLowerCase().includes("asynchron") ||
-        a.label?.toLowerCase().includes("scheduled") ||
-        a.id?.includes("-sched");
-      const bIsAsync =
-        b.label?.toLowerCase().includes("asynchron") ||
-        b.label?.toLowerCase().includes("scheduled") ||
-        b.id?.includes("-sched");
-      if (aIsAsync && !bIsAsync) return 1;
-      if (!aIsAsync && bIsAsync) return -1;
-
-      // For DECISION/WAIT: rules on left, default on right
-      const aIsDefault =
-        a.label?.toLowerCase().includes("default") ||
-        a.label === "Other" ||
-        a.id?.includes("-def");
-      const bIsDefault =
-        b.label?.toLowerCase().includes("default") ||
-        b.label === "Other" ||
-        b.id?.includes("-def");
-      if (aIsDefault && !bIsDefault) return 1;
-      if (!aIsDefault && bIsDefault) return -1;
-      return 0;
-    });
 
     const srcCenterX = srcNode.x + srcNode.width / 2;
     const srcBottomY = srcNode.y + srcNode.height;
@@ -513,7 +470,11 @@ function calculateMergeLines(
 // MAIN EDGE RENDERER COMPONENT
 // ============================================================================
 
-export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
+export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
+  nodes,
+  edges,
+  selectedNodeId,
+}) => {
   const nodeMap = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   // edgesBySource available for future edge grouping needs
@@ -565,6 +526,15 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
 
       const srcCenterX = srcNode.x + srcNode.width / 2;
       const srcBottomY = srcNode.y + srcNode.height;
+      const branchHighlighted =
+        selectedNodeId === bl.sourceId ||
+        bl.branches.some((b) => b.edge.target === selectedNodeId);
+      const branchStrokeColor = branchHighlighted
+        ? CONNECTOR_COLORS.highlight
+        : CONNECTOR_COLORS.default;
+      const branchStrokeWidth = branchHighlighted
+        ? CONNECTOR_WIDTHS.highlight
+        : CONNECTOR_WIDTHS.default;
 
       // Horizontal branch line
       elements.push(
@@ -572,8 +542,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
           key={`branch-line-${bl.sourceId}`}
           d={`M ${bl.minX} ${bl.branchLineY} L ${bl.maxX} ${bl.branchLineY}`}
           fill="none"
-          stroke={CONNECTOR_COLORS.default}
-          strokeWidth={CONNECTOR_WIDTHS.default}
+          stroke={branchStrokeColor}
+          strokeWidth={branchStrokeWidth}
         />
       );
 
@@ -583,14 +553,25 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
           key={`branch-stem-${bl.sourceId}`}
           d={`M ${srcCenterX} ${srcBottomY} L ${srcCenterX} ${bl.branchLineY}`}
           fill="none"
-          stroke={CONNECTOR_COLORS.default}
-          strokeWidth={CONNECTOR_WIDTHS.default}
+          stroke={branchStrokeColor}
+          strokeWidth={branchStrokeWidth}
         />
       );
 
       // Branch drops to targets
       bl.branches.forEach(({ edge, branchX, targetX, targetY }) => {
         const dx = targetX - branchX;
+        const dropHighlighted =
+          branchHighlighted || edge.target === selectedNodeId;
+        const dropStrokeColor = dropHighlighted
+          ? CONNECTOR_COLORS.highlight
+          : CONNECTOR_COLORS.default;
+        const dropStrokeWidth = dropHighlighted
+          ? CONNECTOR_WIDTHS.highlight
+          : CONNECTOR_WIDTHS.default;
+        const dropMarker = dropHighlighted
+          ? "url(#arrow-highlight)"
+          : "url(#arrow)";
 
         let path: string;
         if (Math.abs(dx) < 5) {
@@ -611,15 +592,16 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
             <path
               d={path}
               fill="none"
-              stroke={CONNECTOR_COLORS.default}
-              strokeWidth={CONNECTOR_WIDTHS.default}
-              markerEnd="url(#arrow)"
+              stroke={dropStrokeColor}
+              strokeWidth={dropStrokeWidth}
+              markerEnd={dropMarker}
             />
             {edge.label && (
               <EdgeLabel
                 x={branchX}
                 y={bl.branchLineY - 10}
                 label={edge.label}
+                isHighlighted={dropHighlighted}
               />
             )}
           </g>
@@ -635,14 +617,24 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
     const elements: JSX.Element[] = [];
 
     mergeLines.forEach((ml) => {
+      const mergeHighlighted =
+        selectedNodeId === ml.targetId ||
+        ml.sources.some((s) => s.edge.source === selectedNodeId);
+      const mergeStrokeColor = mergeHighlighted
+        ? CONNECTOR_COLORS.highlight
+        : CONNECTOR_COLORS.default;
+      const mergeStrokeWidth = mergeHighlighted
+        ? CONNECTOR_WIDTHS.highlight
+        : CONNECTOR_WIDTHS.default;
+
       // Horizontal merge line
       elements.push(
         <path
           key={`merge-line-${ml.targetId}`}
           d={`M ${ml.minX} ${ml.mergeLineY} L ${ml.maxX} ${ml.mergeLineY}`}
           fill="none"
-          stroke={CONNECTOR_COLORS.default}
-          strokeWidth={CONNECTOR_WIDTHS.default}
+          stroke={mergeStrokeColor}
+          strokeWidth={mergeStrokeWidth}
         />
       );
 
@@ -652,15 +644,22 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
           key={`merge-stem-${ml.targetId}`}
           d={`M ${ml.centerX} ${ml.mergeLineY} L ${ml.centerX} ${ml.targetY}`}
           fill="none"
-          stroke={CONNECTOR_COLORS.default}
-          strokeWidth={CONNECTOR_WIDTHS.default}
-          markerEnd="url(#arrow)"
+          stroke={mergeStrokeColor}
+          strokeWidth={mergeStrokeWidth}
+          markerEnd={mergeHighlighted ? "url(#arrow-highlight)" : "url(#arrow)"}
         />
       );
 
       // Source connections to merge line
       ml.sources.forEach(({ edge, x, y }) => {
         const dx = ml.centerX - x;
+        const sourceHighlighted = edge.source === selectedNodeId;
+        const sourceStrokeColor = sourceHighlighted
+          ? CONNECTOR_COLORS.highlight
+          : CONNECTOR_COLORS.default;
+        const sourceStrokeWidth = sourceHighlighted
+          ? CONNECTOR_WIDTHS.highlight
+          : CONNECTOR_WIDTHS.default;
 
         let path: string;
         if (Math.abs(dx) < 5) {
@@ -677,8 +676,8 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
             key={`merge-drop-${edge.id}`}
             d={path}
             fill="none"
-            stroke={CONNECTOR_COLORS.default}
-            strokeWidth={CONNECTOR_WIDTHS.default}
+            stroke={sourceStrokeColor}
+            strokeWidth={sourceStrokeWidth}
           />
         );
       });
@@ -722,6 +721,9 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
       const isFaultEnd = edge.type === "fault-end";
       const isGoTo = edge.isGoTo === true || edge.type === "goto";
       const isLoopBack = !isFault && !isFaultEnd && tgtTopY < srcBottomY;
+      const isHighlighted =
+        !!selectedNodeId &&
+        (edge.source === selectedNodeId || edge.target === selectedNodeId);
 
       let path: string;
       const showAsRed = isFault || isFaultEnd;
@@ -779,6 +781,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
       let strokeColor = CONNECTOR_COLORS.default;
       let markerEnd = "url(#arrow)";
       let strokeDasharray: string | undefined = undefined;
+      let strokeWidth = CONNECTOR_WIDTHS.default;
 
       if (showAsRed) {
         strokeColor = CONNECTOR_COLORS.fault;
@@ -790,13 +793,21 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
         strokeDasharray = "6,4"; // GoTo connectors are dashed like fault but blue
       }
 
+      if (isHighlighted) {
+        strokeWidth = CONNECTOR_WIDTHS.highlight;
+        if (!showAsRed && !showAsBlue) {
+          strokeColor = CONNECTOR_COLORS.highlight;
+          markerEnd = "url(#arrow-highlight)";
+        }
+      }
+
       elements.push(
         <g key={edge.id}>
           <path
             d={path}
             fill="none"
             stroke={strokeColor}
-            strokeWidth={CONNECTOR_WIDTHS.default}
+            strokeWidth={strokeWidth}
             strokeDasharray={strokeDasharray}
             markerEnd={markerEnd}
           />
@@ -807,6 +818,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({ nodes, edges }) => {
               label={edge.label}
               isFault={showAsRed}
               isGoTo={showAsBlue}
+              isHighlighted={isHighlighted && !showAsRed && !showAsBlue}
             />
           )}
         </g>

@@ -17,6 +17,7 @@ import type {
   NodeType,
 } from "../types";
 import { NODE_WIDTH, NODE_HEIGHT } from "../constants";
+import { buildFlowRelationships } from "./buildFlowModel";
 
 // ============================================================================
 // ELEMENT TYPE MAPPING
@@ -550,8 +551,10 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
     edges
   );
 
+  const normalizedNodes = buildFlowRelationships(finalNodes, finalEdges);
+
   return {
-    nodes: finalNodes,
+    nodes: normalizedNodes,
     edges: finalEdges,
     metadata,
   };

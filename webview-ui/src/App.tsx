@@ -435,7 +435,11 @@ const App: React.FC = () => {
               }}
             >
               {/* SVG for edges - using EdgeRenderer component */}
-              <EdgeRenderer nodes={parsedData.nodes} edges={parsedData.edges} />
+              <EdgeRenderer
+                nodes={parsedData.nodes}
+                edges={parsedData.edges}
+                selectedNodeId={selectedNode?.id}
+              />
 
               {/* Nodes - using FlowNodeComponent */}
               {parsedData.nodes.map((node) => (
