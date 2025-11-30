@@ -120,8 +120,10 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
       labelX = (srcRightX + tgtLeftX) / 2;
       labelY = srcCenterY - 12;
     } else if (isLoopBack) {
-      const offsetX = Math.min(50, Math.abs(srcCenterX - tgtCenterX) / 2 + 30);
-      labelX = Math.min(srcCenterX, tgtCenterX) - offsetX;
+      // Position loop-back label on the left side of the loop
+      const minX = Math.min(srcCenterX, tgtCenterX);
+      const offsetX = Math.max(60, Math.abs(srcCenterX - tgtCenterX) / 2 + 50);
+      labelX = minX - offsetX - 10;
       labelY = (srcBottomY + tgtTopY) / 2;
     }
 
@@ -139,6 +141,11 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
       strokeColor = CONNECTOR_COLORS.goto;
       markerEnd = "url(#arrow-blue)";
       strokeDasharray = "6,4";
+    } else if (isLoopBack) {
+      // Loop-back connectors use blue dashed style like Salesforce
+      strokeColor = CONNECTOR_COLORS.highlight;
+      markerEnd = "url(#arrow-highlight)";
+      strokeDasharray = "8,4";
     }
 
     if (isHighlighted) {

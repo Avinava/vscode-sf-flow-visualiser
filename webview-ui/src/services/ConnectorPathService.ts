@@ -173,6 +173,14 @@ export class ConnectorPathService {
   /**
    * Create a loop-back connector path (goes left and up)
    *
+   * This creates a smooth curved path that wraps around the left side,
+   * similar to Salesforce's loop visualization. The path goes:
+   * 1. Down from source
+   * 2. Curves left
+   * 3. Goes up along the left side
+   * 4. Curves right
+   * 5. Connects to the target from below
+   *
    * @param src - Source point (bottom of source node)
    * @param tgt - Target point (top of loop node)
    * @param options - Path options
@@ -182,20 +190,31 @@ export class ConnectorPathService {
     tgt: Point,
     options: PathOptions = {}
   ): string {
-    const { cornerRadius = 15 } = options;
+    const { cornerRadius = 20 } = options;
 
-    const offsetX = Math.min(50, Math.abs(src.x - tgt.x) / 2 + 30);
-    const leftX = Math.min(src.x, tgt.x) - offsetX;
+    // Calculate the leftmost X position for the loop-back
+    // Use a comfortable offset from the leftmost point (source or target)
+    const minX = Math.min(src.x, tgt.x);
+    const offsetX = Math.max(60, Math.abs(src.x - tgt.x) / 2 + 50);
+    const leftX = minX - offsetX;
 
-    return `M ${src.x} ${src.y} 
-            L ${src.x} ${src.y + 20} 
-            Q ${src.x} ${src.y + 20 + cornerRadius}, ${src.x - cornerRadius} ${src.y + 20 + cornerRadius}
-            L ${leftX + cornerRadius} ${src.y + 20 + cornerRadius}
-            Q ${leftX} ${src.y + 20 + cornerRadius}, ${leftX} ${src.y + 20}
-            L ${leftX} ${tgt.y + 20}
-            Q ${leftX} ${tgt.y - cornerRadius}, ${leftX + cornerRadius} ${tgt.y - cornerRadius}
-            L ${tgt.x - cornerRadius} ${tgt.y - cornerRadius}
-            Q ${tgt.x} ${tgt.y - cornerRadius}, ${tgt.x} ${tgt.y}`;
+    // Vertical positions for the turns
+    const bottomY = src.y + 30; // Drop down a bit from source
+    const topY = tgt.y - 15; // Come up to just above target
+
+    // Create a smooth path with larger corner radii for elegance
+    const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, offsetX / 2);
+
+    return `M ${src.x} ${src.y}
+            L ${src.x} ${bottomY - r}
+            Q ${src.x} ${bottomY}, ${src.x - r} ${bottomY}
+            L ${leftX + r} ${bottomY}
+            Q ${leftX} ${bottomY}, ${leftX} ${bottomY - r}
+            L ${leftX} ${topY + r}
+            Q ${leftX} ${topY}, ${leftX + r} ${topY}
+            L ${tgt.x - r} ${topY}
+            Q ${tgt.x} ${topY}, ${tgt.x} ${topY + r}
+            L ${tgt.x} ${tgt.y}`;
   }
 
   /**
