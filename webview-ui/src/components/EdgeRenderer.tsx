@@ -60,43 +60,43 @@ export const EdgeMarkers: React.FC = () => (
   <defs>
     <marker
       id="arrow"
-      markerWidth="8"
-      markerHeight="6"
-      refX="7"
-      refY="3"
+      markerWidth="6"
+      markerHeight="5"
+      refX="5"
+      refY="2.5"
       orient="auto"
     >
-      <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.default} />
+      <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.default} />
     </marker>
     <marker
       id="arrow-red"
-      markerWidth="8"
-      markerHeight="6"
-      refX="7"
-      refY="3"
+      markerWidth="6"
+      markerHeight="5"
+      refX="5"
+      refY="2.5"
       orient="auto"
     >
-      <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.fault} />
+      <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.fault} />
     </marker>
     <marker
       id="arrow-blue"
-      markerWidth="8"
-      markerHeight="6"
-      refX="7"
-      refY="3"
+      markerWidth="6"
+      markerHeight="5"
+      refX="5"
+      refY="2.5"
       orient="auto"
     >
-      <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.goto} />
+      <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.goto} />
     </marker>
     <marker
       id="arrow-highlight"
-      markerWidth="8"
-      markerHeight="6"
-      refX="7"
-      refY="3"
+      markerWidth="6"
+      markerHeight="5"
+      refX="5"
+      refY="2.5"
       orient="auto"
     >
-      <polygon points="0 0, 8 3, 0 6" fill={CONNECTOR_COLORS.highlight} />
+      <polygon points="0 0, 6 2.5, 0 5" fill={CONNECTOR_COLORS.highlight} />
     </marker>
   </defs>
 );
@@ -114,19 +114,20 @@ interface EdgeLabelProps {
 
 const EdgeLabel: React.FC<EdgeLabelProps> = ({ x, y, label, isFault }) => (
   <foreignObject
-    x={x - 60}
+    x={x - 75}
     y={y - 12}
-    width={120}
+    width={150}
     height={24}
     style={{ overflow: "visible" }}
   >
     <div
-      className={`text-[10px] px-2 py-0.5 rounded-full text-center truncate border shadow-sm mx-auto
+      className={`text-[10px] px-2.5 py-1 rounded-full text-center truncate border shadow-sm mx-auto font-medium
         ${
           isFault
-            ? "bg-red-500 text-white border-red-600 font-medium"
-            : "bg-white text-slate-600 border-slate-200 max-w-[110px]"
+            ? "bg-red-500 text-white border-red-600"
+            : "bg-white text-slate-600 border-slate-200 max-w-[140px]"
         }`}
+      style={{ width: "fit-content", margin: "0 auto" }}
     >
       {label}
     </div>

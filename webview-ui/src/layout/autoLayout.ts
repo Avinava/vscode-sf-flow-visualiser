@@ -31,7 +31,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
       w: 48,
       h: 48,
     },
-    width: 220,
+    width: 240, // Updated to match new NODE_WIDTH
     height: 56,
   },
   connector: {
@@ -40,8 +40,8 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
     },
   },
   grid: {
-    hGap: 80, // Horizontal gap between adjacent nodes
-    vGap: 80, // Vertical gap between rows
+    hGap: 60, // Reduced horizontal gap for tighter layout
+    vGap: 70, // Adjusted vertical gap
   },
   start: {
     x: 800, // Canvas center X

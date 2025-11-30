@@ -41,7 +41,7 @@ import type { NodeConfigMap } from "../types";
 // --alc-element-card-width: 285px
 // ============================================================================
 
-export const NODE_WIDTH = 220;
+export const NODE_WIDTH = 240; // Slightly wider to match SF better
 export const NODE_HEIGHT = 56;
 export const NODE_ICON_SIZE = 48;
 
@@ -58,8 +58,8 @@ export const PASTE_NODE_HEIGHT = 35;
 // Based on Salesforce's layout configuration
 // ============================================================================
 
-export const GRID_H_GAP = 80; // Horizontal gap between adjacent nodes
-export const GRID_V_GAP = 80; // Vertical gap between rows
+export const GRID_H_GAP = 60; // Reduced horizontal gap for tighter layout
+export const GRID_V_GAP = 70; // Adjusted vertical gap
 
 // ============================================================================
 // CANVAS POSITIONING
@@ -74,17 +74,17 @@ export const START_Y = 80; // Canvas top Y
 // ============================================================================
 
 export const CONNECTOR_COLORS = {
-  default: "#94a3b8", // --alc-connector-stroke
-  fault: "#ef4444", // --lwc-colorBorderError
-  highlight: "#60a5fa", // --lwc-paletteBlue30
+  default: "#94a3b8", // --alc-connector-stroke (slate gray)
+  fault: "#ef4444", // --lwc-colorBorderError (red)
+  highlight: "#60a5fa", // --lwc-paletteBlue30 (light blue)
   goto: "#3b82f6", // Blue for GoTo connectors
   cut: "#3b82f6", // --lwc-brandAccessible
   delete: "#ef4444", // --lwc-colorBorderError
 };
 
 export const CONNECTOR_WIDTHS = {
-  default: 2, // --alc-connector-default-width
-  highlight: 4, // --alc-connector-highlight-width
+  default: 1.5, // Thinner default stroke for cleaner look
+  highlight: 3, // Highlight width
 };
 
 // ============================================================================

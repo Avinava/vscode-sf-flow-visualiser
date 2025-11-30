@@ -20,6 +20,7 @@ import { NODE_CONFIG } from "../constants";
 interface FlowNodeProps {
   node: FlowNodeType;
   isSelected: boolean;
+  isGoToTarget?: boolean;
   onSelect: (node: FlowNodeType) => void;
 }
 
@@ -30,6 +31,7 @@ interface FlowNodeProps {
 export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   node,
   isSelected,
+  isGoToTarget = false,
   onSelect,
 }) => {
   const config: NodeTypeConfig = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
@@ -38,6 +40,35 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   if (node.type === "END") {
     const isFaultPath = node.data.isFaultPath === true;
 
+    // For fault-path END nodes, position horizontally
+    if (isFaultPath) {
+      return (
+        <div
+          className="flow-node absolute flex flex-row items-center"
+          style={{ left: node.x, top: node.y, width: node.width }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(node);
+          }}
+        >
+          {/* End circle */}
+          <div
+            className={`
+              w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
+              shadow transition-all
+              ${isSelected ? "ring-3 ring-red-200" : "hover:shadow-md"}
+            `}
+          >
+            <config.icon size={12} className="text-white" fill="white" />
+          </div>
+
+          {/* Label */}
+          <div className="text-xs font-medium text-slate-500 ml-2">End</div>
+        </div>
+      );
+    }
+
+    // Normal END node (vertical connection from above)
     return (
       <div
         className="flow-node absolute flex flex-col items-center"
@@ -47,24 +78,22 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           onSelect(node);
         }}
       >
-        {/* Top connector dot (only for non-fault-path ends) */}
-        {!isFaultPath && (
-          <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow mb-2" />
-        )}
+        {/* Top connector dot */}
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm mb-2" />
 
         {/* End circle */}
         <div
           className={`
-            w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
-            shadow-md transition-all
-            ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
+            w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
+            shadow transition-all
+            ${isSelected ? "ring-3 ring-red-200" : "hover:shadow-md"}
           `}
         >
-          <config.icon size={16} className="text-white" fill="white" />
+          <config.icon size={12} className="text-white" fill="white" />
         </div>
 
         {/* Label */}
-        <div className="text-xs font-medium text-slate-600 mt-1.5">End</div>
+        <div className="text-xs font-medium text-slate-500 mt-1.5">End</div>
       </div>
     );
   }
@@ -81,31 +110,53 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
     >
       {/* Top connector dot */}
       {node.type !== "START" && (
-        <div className="flex justify-center -mb-1.5 relative z-10">
-          <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow" />
+        <div className="flex justify-center -mb-1 relative z-10">
+          {isGoToTarget && (
+            <div
+              className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white bg-blue-500 shadow-sm"
+              title="GoTo Target"
+            >
+              ↵
+            </div>
+          )}
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
         </div>
       )}
 
       {/* Node card */}
       <div
         className={`
-          rounded-xl border-2 shadow-md cursor-pointer overflow-hidden transition-all
+          rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
           ${
             isSelected
               ? "border-blue-500 shadow-lg ring-2 ring-blue-200"
-              : "border-slate-200 hover:border-slate-300 hover:shadow-lg"
+              : "border-slate-200 hover:border-slate-300 hover:shadow-md"
           }
           bg-white
         `}
       >
         <div className="flex items-stretch">
-          {/* Icon */}
-          <div
-            className="w-10 flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: config.color }}
-          >
-            <config.icon size={16} className="text-white" />
-          </div>
+          {/* Icon - diamond shape for DECISION/WAIT nodes */}
+          {node.type === "DECISION" || node.type === "WAIT" ? (
+            <div className="w-12 flex items-center justify-center flex-shrink-0 py-2">
+              <div
+                className="w-8 h-8 flex items-center justify-center transform rotate-45 rounded-sm"
+                style={{ backgroundColor: config.color }}
+              >
+                <config.icon
+                  size={14}
+                  className="text-white transform -rotate-45"
+                />
+              </div>
+            </div>
+          ) : (
+            <div
+              className="w-12 flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: config.color }}
+            >
+              <config.icon size={18} className="text-white" />
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 px-3 py-2 min-w-0">
@@ -130,246 +181,8 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       </div>
 
       {/* Bottom connector dot */}
-      <div className="flex justify-center -mt-1.5 relative z-10">
-        <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow" />
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// START NODE COMPONENT
-// Special rendering for start nodes with trigger information
-// ============================================================================
-
-interface StartNodeProps {
-  node: FlowNodeType;
-  isSelected: boolean;
-  onSelect: (node: FlowNodeType) => void;
-}
-
-export const StartNodeComponent: React.FC<StartNodeProps> = ({
-  node,
-  isSelected,
-  onSelect,
-}) => {
-  const config = NODE_CONFIG.START;
-  const triggerType = node.data.triggerType as string;
-  const object = node.data.object as string;
-
-  return (
-    <div
-      className="flow-node absolute"
-      style={{ left: node.x, top: node.y, width: node.width }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(node);
-      }}
-    >
-      {/* Node card */}
-      <div
-        className={`
-          rounded-xl border-2 shadow-md cursor-pointer overflow-hidden transition-all
-          ${
-            isSelected
-              ? "border-green-500 shadow-lg ring-2 ring-green-200"
-              : "border-slate-200 hover:border-slate-300 hover:shadow-lg"
-          }
-          bg-white
-        `}
-      >
-        <div className="flex items-stretch">
-          {/* Icon */}
-          <div
-            className="w-10 flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: config.color }}
-          >
-            <config.icon size={16} className="text-white" />
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 px-3 py-2 min-w-0">
-            <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
-              {config.label}
-            </div>
-            <div
-              className="text-sm font-semibold text-slate-800 truncate"
-              title={node.label}
-            >
-              {node.label}
-            </div>
-            {object && (
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                Object: {object}
-              </div>
-            )}
-            {triggerType && (
-              <div className="text-[10px] text-green-600 font-medium mt-0.5">
-                {triggerType === "RecordAfterSave" && "After Save"}
-                {triggerType === "RecordBeforeSave" && "Before Save"}
-                {triggerType === "Scheduled" && "Scheduled"}
-                {triggerType === "PlatformEvent" && "Platform Event"}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom connector dot */}
-      <div className="flex justify-center -mt-1.5 relative z-10">
-        <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow" />
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// END NODE COMPONENT
-// Special rendering for end nodes
-// ============================================================================
-
-interface EndNodeProps {
-  node: FlowNodeType;
-  isSelected: boolean;
-  onSelect: (node: FlowNodeType) => void;
-}
-
-export const EndNodeComponent: React.FC<EndNodeProps> = ({
-  node,
-  isSelected,
-  onSelect,
-}) => {
-  const isFaultPath = node.data.isFaultPath === true;
-
-  if (isFaultPath) {
-    // Horizontal layout for fault path ends
-    return (
-      <div
-        className="flow-node absolute flex flex-row items-center"
-        style={{ left: node.x, top: node.y, width: node.width }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(node);
-        }}
-      >
-        {/* End circle */}
-        <div
-          className={`
-            w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
-            shadow-md transition-all
-            ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
-          `}
-        >
-          <NODE_CONFIG.END.icon size={16} className="text-white" fill="white" />
-        </div>
-
-        {/* Label */}
-        <div className="text-xs font-medium text-slate-600 ml-2">End</div>
-      </div>
-    );
-  }
-
-  // Normal END node (vertical connection from above)
-  return (
-    <div
-      className="flow-node absolute flex flex-col items-center"
-      style={{ left: node.x, top: node.y, width: node.width }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(node);
-      }}
-    >
-      {/* Top connector dot */}
-      <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow mb-2" />
-
-      {/* End circle */}
-      <div
-        className={`
-          w-10 h-10 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
-          shadow-md transition-all
-          ${isSelected ? "ring-4 ring-red-200" : "hover:shadow-lg"}
-        `}
-      >
-        <NODE_CONFIG.END.icon size={16} className="text-white" fill="white" />
-      </div>
-
-      {/* Label */}
-      <div className="text-xs font-medium text-slate-600 mt-1.5">End</div>
-    </div>
-  );
-};
-
-// ============================================================================
-// DECISION NODE COMPONENT
-// Diamond-shaped node for decisions
-// ============================================================================
-
-interface DecisionNodeProps {
-  node: FlowNodeType;
-  isSelected: boolean;
-  onSelect: (node: FlowNodeType) => void;
-}
-
-export const DecisionNodeComponent: React.FC<DecisionNodeProps> = ({
-  node,
-  isSelected,
-  onSelect,
-}) => {
-  const config = NODE_CONFIG.DECISION;
-
-  return (
-    <div
-      className="flow-node absolute"
-      style={{ left: node.x, top: node.y, width: node.width }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(node);
-      }}
-    >
-      {/* Top connector dot */}
-      <div className="flex justify-center -mb-1.5 relative z-10">
-        <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow" />
-      </div>
-
-      {/* Node card */}
-      <div
-        className={`
-          rounded-xl border-2 shadow-md cursor-pointer overflow-hidden transition-all
-          ${
-            isSelected
-              ? "border-amber-500 shadow-lg ring-2 ring-amber-200"
-              : "border-slate-200 hover:border-slate-300 hover:shadow-lg"
-          }
-          bg-white
-        `}
-      >
-        <div className="flex items-stretch">
-          {/* Diamond icon container */}
-          <div
-            className="w-10 flex items-center justify-center flex-shrink-0 rotate-45"
-            style={{ backgroundColor: config.color }}
-          >
-            <config.icon size={16} className="text-white -rotate-45" />
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 px-3 py-2 min-w-0">
-            <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
-              {config.label}
-            </div>
-            <div
-              className="text-sm font-semibold text-slate-800 truncate"
-              title={node.label}
-            >
-              {node.label}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom connector dot */}
-      <div className="flex justify-center -mt-1.5 relative z-10">
-        <div className="w-3 h-3 rounded-full bg-slate-300 border-2 border-white shadow" />
+      <div className="flex justify-center -mt-1 relative z-10">
+        <div className="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
       </div>
     </div>
   );
