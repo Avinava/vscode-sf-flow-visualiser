@@ -83,7 +83,9 @@ export function calculateBranchLines(
 
     const srcCenterX = srcNode.x + srcNode.width / 2;
     const srcBottomY = srcNode.y + srcNode.height;
-    const branchLineY = srcBottomY + 35;
+    // Extra offset for START nodes with scheduled paths (they need more room for labels)
+    const branchOffset = srcNode.type === "START" ? 55 : 45;
+    const branchLineY = srcBottomY + branchOffset;
 
     // Calculate branch spread positions
     const numBranches = branchEdges.length;
