@@ -157,7 +157,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           onSelect(node);
         }}
       >
-        {/* Node card */}
+        {/* Node card - Salesforce style */}
         <div
           className={`
             rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
@@ -169,42 +169,42 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             bg-white
           `}
         >
-          {/* Main node header */}
-          <div className="flex items-stretch">
+          {/* Main node header - Salesforce style with circular icon */}
+          <div className="flex items-center p-3 gap-3">
+            {/* Circular icon like Salesforce */}
             <div
-              className="w-12 flex items-center justify-center flex-shrink-0"
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ backgroundColor: config.color }}
             >
-              <config.icon size={18} className="text-white" />
+              <config.icon size={20} className="text-white" />
             </div>
-            <div className="flex-1 px-3 py-2 min-w-0">
-              <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
-                {config.label}
-              </div>
+            {/* Title and subtitle */}
+            <div className="flex-1 min-w-0">
               <div
                 className="text-sm font-semibold text-slate-800 truncate"
                 title={node.label}
               >
                 {node.label}
               </div>
+              <div className="text-xs text-slate-500">Start</div>
             </div>
           </div>
 
-          {/* Trigger details panel (like Salesforce) - simplified for read-only */}
+          {/* Trigger details panel - Salesforce style with inline labels */}
           {showExpansion && (
-            <div className="border-t border-slate-100 px-3 py-2 bg-slate-50 text-[11px]">
+            <div className="border-t border-slate-200 px-3 py-2 text-[13px] space-y-0.5">
               {hasObject && (
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500">Object:</span>
-                  <span className="font-medium text-slate-700">
+                <div className="flex items-baseline">
+                  <span className="text-slate-500 mr-1">Object:</span>
+                  <span className="font-medium text-slate-800">
                     {node.data.object}
                   </span>
                 </div>
               )}
               {node.data.recordTriggerType && (
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500">Trigger:</span>
-                  <span className="font-medium text-slate-700">
+                <div className="flex items-baseline">
+                  <span className="text-slate-500 mr-1">Trigger:</span>
+                  <span className="font-medium text-slate-800">
                     {getRecordTriggerLabel(
                       node.data.recordTriggerType as string
                     )}
@@ -212,9 +212,9 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
                 </div>
               )}
               {node.data.triggerType && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Optimize for:</span>
-                  <span className="font-medium text-slate-700 truncate ml-2">
+                <div className="flex items-baseline">
+                  <span className="text-slate-500 mr-1">Optimize for:</span>
+                  <span className="font-medium text-slate-800 truncate">
                     {getOptimizeForLabel(node.data.triggerType as string)}
                   </span>
                 </div>
