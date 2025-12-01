@@ -30,115 +30,27 @@ export interface FlowViolation {
   docLink?: string;
 }
 
-const RULE_METADATA: Record<
-  string,
-  { label: string; description: string; docAnchor: string }
-> = {
-  CyclomaticComplexity: {
-    label: "Cyclomatic Complexity",
-    description:
-      "Flow complexity is too high. Consider breaking into smaller subflows.",
-    docAnchor: "cyclomatic-complexity",
-  },
-  DMLStatementInLoop: {
-    label: "DML Statement In Loop",
-    description:
-      "Database operations inside loops can exceed governor limits. Move DML outside loops.",
-    docAnchor: "dml-statement-in-a-loop",
-  },
-  SOQLQueryInLoop: {
-    label: "SOQL Query In Loop",
-    description:
-      "SOQL queries inside loops can exceed governor limits. Move queries outside loops.",
-    docAnchor: "soql-query-in-a-loop",
-  },
-  HardcodedId: {
-    label: "Hardcoded ID",
-    description:
-      "Hardcoded IDs are org-specific and will break in other environments.",
-    docAnchor: "hardcoded-id",
-  },
-  HardcodedUrl: {
-    label: "Hardcoded URL",
-    description:
-      "Hardcoded URLs are environment-specific. Use $API formula or custom labels.",
-    docAnchor: "hardcoded-url",
-  },
-  MissingFaultPath: {
-    label: "Missing Fault Path",
-    description:
-      "Element lacks error handling. Add fault connectors for graceful error handling.",
-    docAnchor: "missing-fault-path",
-  },
-  MissingNullHandler: {
-    label: "Missing Null Handler",
-    description:
-      "Decision doesn't handle null/empty values. Add a null check to prevent runtime errors.",
-    docAnchor: "missing-null-handler",
-  },
-  DuplicateDMLOperation: {
-    label: "Duplicate DML Operation",
-    description:
-      "Duplicate database operations between screens. Prevent users from navigating backward.",
-    docAnchor: "duplicate-dml-operation",
-  },
-  APIVersion: {
-    label: "Outdated API Version",
-    description:
-      "Flow uses an outdated API version. Update to the latest version for best compatibility.",
-    docAnchor: "outdated-api-version",
-  },
-  FlowName: {
-    label: "Flow Naming Convention",
-    description:
-      "Flow name doesn't follow naming conventions. Use a clear, descriptive name with domain prefix.",
-    docAnchor: "flow-naming-convention",
-  },
-  UnconnectedElement: {
-    label: "Unconnected Element",
-    description:
-      "Element is not connected to the flow. Remove unused elements or connect them properly.",
-    docAnchor: "unconnected-element",
-  },
-  MissingFlowDescription: {
-    label: "Missing Flow Description",
-    description:
-      "Flow lacks a description. Add documentation to help others understand its purpose.",
-    docAnchor: "missing-flow-description",
-  },
-  CopyAPIName: {
-    label: "Copy API Name",
-    description:
-      "Element has a 'Copy_X_Of_' name pattern. Rename copied elements for clarity.",
-    docAnchor: "copy-api-name",
-  },
-  GetRecordAllFields: {
-    label: "Get Record All Fields",
-    description:
-      "Using 'Get all fields' violates principle of least privilege. Specify only needed fields.",
-    docAnchor: "get-record-all-fields",
-  },
-  SameRecordFieldUpdates: {
-    label: "Same Record Field Updates",
-    description:
-      "In Before-Save flows, use $Record variable assignments instead of Update Records elements for same-record updates. This is significantly faster.",
-    docAnchor: "same-record-field-updates",
-  },
-  TriggerOrder: {
-    label: "Trigger Order",
-    description:
-      "Consider setting explicit trigger order to control flow execution sequence.",
-    docAnchor: "trigger-order",
-  },
-  FlowDescription: {
-    label: "Missing Flow Description",
-    description:
-      "Flow lacks a description. Add documentation to help others understand its purpose.",
-    docAnchor: "flow-description",
-  },
+// Severity overrides for rules where we want different severity than the library default
+const SEVERITY_OVERRIDES: Record<string, "error" | "warning" | "note"> = {
+  DMLStatementInLoop: "error",
+  SOQLQueryInLoop: "error",
+  MissingFaultPath: "error",
+  HardcodedId: "warning",
+  HardcodedUrl: "warning",
+  DuplicateDMLOperation: "warning",
+  UnconnectedElement: "warning",
 };
 
-function mapSeverity(scannerSeverity?: string): "error" | "warning" | "note" {
+function mapSeverity(
+  ruleName: string,
+  scannerSeverity?: string
+): "error" | "warning" | "note" {
+  // Check for override first
+  if (SEVERITY_OVERRIDES[ruleName]) {
+    return SEVERITY_OVERRIDES[ruleName];
+  }
+
+  // Otherwise use the scanner's severity
   switch (scannerSeverity?.toLowerCase()) {
     case "error":
       return "error";
@@ -176,40 +88,10 @@ export async function analyzeFlowXML(
     const flows = await parse([tmpFilePath]);
     console.log(`[Extension FlowScanner] Parsed ${flows.length} flow(s)`);
 
-    // Configure scanner rules
-    const config: any = {
-      CyclomaticComplexity: { severity: "note" },
-      DMLStatementInLoop: { severity: "error" },
-      SOQLQueryInLoop: { severity: "error" },
-      HardcodedId: { severity: "warning" },
-      HardcodedUrl: { severity: "warning" },
-      MissingFaultPath: { severity: "error" },
-      MissingNullHandler: { severity: "note" },
-      DuplicateDMLOperation: { severity: "warning" },
-      APIVersion: { severity: "note" },
-      FlowName: { severity: "note" },
-      UnconnectedElement: { severity: "warning" },
-      MissingFlowDescription: { severity: "note" },
-      SameRecordFieldUpdates: { severity: "note" },
-      TriggerOrder: { severity: "note" },
-      CopyAPIName: { severity: "note" },
-      GetRecordAllFields: { severity: "note" },
-    };
-
-    console.log(
-      "[Extension FlowScanner] Config:",
-      JSON.stringify(config, null, 2)
-    );
-    console.log("[Extension FlowScanner] Flows array:", flows);
-
-    // Run the scanner
-    const scanResults = await scan(flows, config);
+    // Run the scanner (use library defaults for all rules)
+    const scanResults = await scan(flows);
     console.log(
       `[Extension FlowScanner] Scan found ${scanResults.length} result(s)`
-    );
-    console.log(
-      "[Extension FlowScanner] Scan results detail:",
-      JSON.stringify(scanResults, null, 2)
     );
 
     // Extract violations
@@ -217,52 +99,39 @@ export async function analyzeFlowXML(
     let cyclomaticComplexity = 0;
 
     for (const result of scanResults) {
-      console.log("[Extension FlowScanner] Processing result:", result);
-      console.log(
-        "[Extension FlowScanner] Rule results count:",
-        result.ruleResults?.length
-      );
-
       if (!result.ruleResults || result.ruleResults.length === 0) {
         continue;
       }
 
       for (const ruleResult of result.ruleResults) {
-        console.log(
-          "[Extension FlowScanner] Rule result:",
-          ruleResult.ruleName,
-          "occurs:",
-          ruleResult.occurs,
-          "details count:",
-          ruleResult.details?.length
-        );
-
+        // Get metadata directly from the rule definition provided by flow-scanner
+        const ruleDef = ruleResult.ruleDefinition;
         const ruleName = ruleResult.ruleName || "Unknown";
-        const metadata = RULE_METADATA[ruleName] || {
-          label: ruleName,
-          description: "Flow quality issue detected.",
-          docAnchor: "",
-        };
+        const ruleLabel = ruleDef?.label || ruleName;
+        const ruleDescription =
+          ruleDef?.description || "Flow quality issue detected.";
+        const docLink = ruleDef?.docRefs?.[0]?.path;
 
         const ruleViolations = ruleResult.details || [];
 
+        console.log(
+          "[Extension FlowScanner] Rule:",
+          ruleName,
+          "occurs:",
+          ruleResult.occurs,
+          "violations:",
+          ruleViolations.length
+        );
+
         for (const violation of ruleViolations) {
-          console.log("[Extension FlowScanner] Violation detail:", {
-            ruleName,
-            violationName: violation.name,
-            violationType: violation.type,
-            violationMetaType: violation.metaType,
-          });
           violations.push({
             rule: ruleName,
-            ruleLabel: metadata.label,
-            severity: mapSeverity(ruleResult.severity),
-            message: violation.name || metadata.description,
+            ruleLabel,
+            severity: mapSeverity(ruleName, ruleResult.severity),
+            message: ruleDescription,
             elementName: violation.name,
             elementType: violation.metaType || violation.type,
-            docLink: metadata.docAnchor
-              ? `https://github.com/Flow-Scanner/lightning-flow-scanner#${metadata.docAnchor}`
-              : undefined,
+            docLink,
           });
         }
 
