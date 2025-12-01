@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Flow Quality Analysis**: Integrated `lightning-flow-scanner` to provide real-time quality analysis of flows
+- **Quality Tab**: Dedicated tab in the sidebar to view errors, warnings, and notes
 - **Sidebar**: New sidebar for viewing node details and properties
 - **Conditions**: Enhanced visualization of decision conditions and outcomes
 - **More**: Various improvements to flow rendering and user experience
