@@ -22,3 +22,4 @@ references/
 docs/**
 .DS_Store
 assets/screenshot.png
+.github/**
