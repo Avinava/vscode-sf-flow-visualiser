@@ -16,6 +16,12 @@ import type { Point } from "../hooks/useCanvasInteraction";
 const DEFAULT_CORNER_RADIUS = 12;
 const FAULT_HORIZONTAL_OFFSET = 50;
 const FAULT_LANE_CLEARANCE = 60;
+const FAULT_GOTO_SOURCE_OFFSET = 28;
+const FAULT_GOTO_STACK_OFFSET = 14;
+const FAULT_GOTO_VERTICAL_STACK_MULTIPLIER = 10;
+const REGULAR_FAULT_TARGET_CLEARANCE = 18;
+const REGULAR_FAULT_STACK_OFFSET = 14;
+const REGULAR_FAULT_MIN_TARGET_CLEARANCE = 12;
 
 // ============================================================================
 // TYPES
@@ -137,15 +143,12 @@ export class ConnectorPathService {
       verticalOffset = 0,
     } = options;
 
-    const startClearance =
-      src.x + FAULT_LANE_CLEARANCE + faultIndex * 20 + verticalOffset;
-
     // If target is already in the fault lane (to the right), route more directly
     if (targetInFaultLane || tgt.x > src.x + FAULT_HORIZONTAL_OFFSET) {
-      // Target is in fault lane - use a vertical lane CLOSE TO SOURCE to avoid
-      // overlapping with other fault connectors which use lanes further out.
-      // Regular faults use lanes close to target, so we use ~45px from source.
-      const turnX = src.x + 45 + faultIndex * 15 + verticalOffset * 10;
+      const turnX = this.getFaultGoToLaneX(src.x, {
+        faultIndex,
+        verticalOffset,
+      });
       const goingDown = tgt.y > src.y;
       const verticalYStart = goingDown
         ? src.y + cornerRadius
@@ -174,6 +177,8 @@ export class ConnectorPathService {
     }
 
     // Target is in main flow (same column or to the left) - go into dedicated fault lane
+    const startClearance =
+      src.x + FAULT_LANE_CLEARANCE + faultIndex * 20 + verticalOffset;
     const laneX = Math.max(
       Math.max(src.x, tgt.x) + FAULT_LANE_CLEARANCE,
       startClearance
@@ -220,17 +225,7 @@ export class ConnectorPathService {
       return this.createStraightPath(src, tgt);
     }
 
-    // For regular fault paths (not GoTo), use a lane CLOSE TO THE TARGET
-    // to leave room for fault GoTo paths which use lanes close to their source.
-    // This creates visual separation between different fault connectors.
-    const safetyMargin = 50;
-
-    // Position the vertical lane close to the target (with stagger for multiple faults)
-    const staggerOffset = faultIndex * 20;
-    const horizontalEndX = Math.max(
-      src.x + FAULT_HORIZONTAL_OFFSET, // minimum distance from source
-      tgt.x - safetyMargin - staggerOffset // prefer close to target
-    );
+    const horizontalEndX = this.getRegularFaultLaneX(src.x, tgt.x, faultIndex);
 
     if (tgt.y > src.y) {
       // Target is below
@@ -249,6 +244,43 @@ export class ConnectorPathService {
               Q ${horizontalEndX} ${tgt.y}, ${horizontalEndX + cornerRadius} ${tgt.y}
               L ${tgt.x} ${tgt.y}`;
     }
+  }
+
+  /**
+   * Compute the X position of the near-source lane for fault GoTo connectors.
+   * Exported so renderers can align labels to the same lane.
+   */
+  static getFaultGoToLaneX(
+    srcX: number,
+    options: { faultIndex?: number; verticalOffset?: number } = {}
+  ): number {
+    const { faultIndex = 0, verticalOffset = 0 } = options;
+    return (
+      srcX +
+      FAULT_GOTO_SOURCE_OFFSET +
+      faultIndex * FAULT_GOTO_STACK_OFFSET +
+      verticalOffset * FAULT_GOTO_VERTICAL_STACK_MULTIPLIER
+    );
+  }
+
+  private static getRegularFaultLaneX(
+    srcX: number,
+    tgtX: number,
+    faultIndex: number = 0
+  ): number {
+    const laneNearTarget =
+      tgtX -
+      REGULAR_FAULT_TARGET_CLEARANCE -
+      faultIndex * REGULAR_FAULT_STACK_OFFSET;
+    const minLane = srcX + FAULT_HORIZONTAL_OFFSET;
+    const maxLane = tgtX - REGULAR_FAULT_MIN_TARGET_CLEARANCE;
+
+    if (maxLane <= minLane) {
+      return maxLane;
+    }
+
+    const clampedLane = Math.max(minLane, laneNearTarget);
+    return Math.min(clampedLane, maxLane);
   }
 
   /**

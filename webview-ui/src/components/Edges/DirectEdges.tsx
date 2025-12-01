@@ -394,8 +394,10 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
           { x: tgtLeftX, y: tgt.y + tgt.height / 2 },
           { faultIndex, targetInFaultLane: true, verticalOffset }
         );
-        // Turn point is close to source (45 + offsets)
-        faultGoToTurnX = srcRightX + 45 + faultIndex * 15 + verticalOffset * 10;
+        faultGoToTurnX = ConnectorPathService.getFaultGoToLaneX(srcRightX, {
+          faultIndex,
+          verticalOffset,
+        });
         faultGoToLabelY = srcCenterY - 12;
       } else {
         // Target is in main flow - enter from the right side
