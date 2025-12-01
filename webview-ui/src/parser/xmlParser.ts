@@ -85,12 +85,107 @@ interface StartNodeResult {
   edges: FlowEdge[];
 }
 
+/**
+ * Parse entry conditions from start element
+ */
+function parseEntryConditions(
+  startEl: Element
+): Array<{ field: string; operator: string; value: string }> {
+  const conditions: Array<{ field: string; operator: string; value: string }> =
+    [];
+  const filterEls = startEl.getElementsByTagName("filters");
+  for (let i = 0; i < filterEls.length; i++) {
+    const filter = filterEls[i];
+    const valueEl = filter.getElementsByTagName("value")[0];
+    let value = "";
+    if (valueEl) {
+      value =
+        getText(valueEl, "stringValue") ||
+        getText(valueEl, "elementReference") ||
+        getText(valueEl, "numberValue") ||
+        getText(valueEl, "booleanValue") ||
+        valueEl.textContent ||
+        "";
+    }
+    conditions.push({
+      field: getText(filter, "field"),
+      operator: getText(filter, "operator"),
+      value,
+    });
+  }
+  return conditions;
+}
+
+/**
+ * Parse scheduled paths from start element
+ */
+function parseScheduledPaths(
+  startEl: Element
+): Array<{
+  name: string;
+  label: string;
+  pathType: string;
+  timeOffset?: number;
+  timeOffsetUnit?: string;
+}> {
+  const paths: Array<{
+    name: string;
+    label: string;
+    pathType: string;
+    timeOffset?: number;
+    timeOffsetUnit?: string;
+  }> = [];
+  const scheduledPathEls = startEl.getElementsByTagName("scheduledPaths");
+  for (let i = 0; i < scheduledPathEls.length; i++) {
+    const path = scheduledPathEls[i];
+    const pathType = getText(path, "pathType");
+    const pathName = getText(path, "name");
+    let pathLabel = getText(path, "label") || pathName;
+    if (!pathLabel) {
+      if (pathType === "AsyncAfterCommit") {
+        pathLabel = "Run Asynchronously";
+      } else if (pathType === "Scheduled") {
+        pathLabel = "Scheduled Path";
+      } else {
+        pathLabel = `Path ${i + 1}`;
+      }
+    }
+
+    const timeOffsetStr = getText(path, "offsetNumber");
+    const timeOffset = timeOffsetStr ? parseInt(timeOffsetStr, 10) : undefined;
+    const timeOffsetUnit = getText(path, "offsetUnit") || undefined;
+
+    paths.push({
+      name: pathName,
+      label: pathLabel,
+      pathType,
+      timeOffset,
+      timeOffsetUnit,
+    });
+  }
+  return paths;
+}
+
 function parseStartElement(startEl: Element): StartNodeResult {
   const edges: FlowEdge[] = [];
 
   const triggerType = getText(startEl, "triggerType");
   const obj = getText(startEl, "object");
   const recTrigger = getText(startEl, "recordTriggerType");
+
+  // Parse additional entry criteria fields
+  const filterFormula = getText(startEl, "filterFormula");
+  const filterLogic = getText(startEl, "filterLogic");
+  const doesRequireRecordChangedToMeetCriteria = getText(
+    startEl,
+    "doesRequireRecordChangedToMeetCriteria"
+  );
+  const entryConditions = parseEntryConditions(startEl);
+  const scheduledPathsData = parseScheduledPaths(startEl);
+
+  // Parse schedule info for scheduled flows
+  const schedule = getText(startEl, "schedule");
+  const frequency = getText(startEl, "frequency");
 
   // Determine start label based on trigger type
   let startLabel = "Start";
@@ -123,6 +218,18 @@ function parseStartElement(startEl: Element): StartNodeResult {
       object: obj,
       triggerType,
       recordTriggerType: recTrigger,
+      // Entry criteria
+      filterFormula,
+      filterLogic,
+      doesRequireRecordChangedToMeetCriteria:
+        doesRequireRecordChangedToMeetCriteria === "true",
+      entryConditions: entryConditions.length > 0 ? entryConditions : undefined,
+      // Scheduled paths
+      scheduledPaths:
+        scheduledPathsData.length > 0 ? scheduledPathsData : undefined,
+      // Schedule info
+      schedule,
+      frequency,
     },
   };
 
@@ -414,11 +521,26 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
     elementData.inputAssignments = parseInputAssignments(el);
   }
 
-  // Parse action call
+  // Parse action call - detect specific action types
   if (type === "ACTION") {
     elementData.actionName = getText(el, "actionName");
     elementData.actionType = getText(el, "actionType");
     elementData.inputAssignments = parseInputAssignments(el);
+  }
+
+  // Refine node type based on actionType for ACTION elements
+  let finalType = type;
+  if (type === "ACTION" && elementData.actionType) {
+    const actionTypeMap: Record<string, NodeType> = {
+      emailAlert: "EMAIL_ALERT",
+      quickAction: "QUICK_ACTION",
+      apex: "APEX_CALL",
+      submit: "SUBMIT_FOR_APPROVAL",
+      externalService: "EXTERNAL_SERVICE",
+      chatterPost: "POST_TO_CHATTER",
+      sendEmail: "SEND_EMAIL",
+    };
+    finalType = actionTypeMap[elementData.actionType as string] || type;
   }
 
   // Parse decision rules (for data display, not connectors)
@@ -446,7 +568,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
 
   const node: FlowNode = {
     id: name,
-    type,
+    type: finalType,
     label,
     x: 0,
     y: 0,

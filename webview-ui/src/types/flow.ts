@@ -138,6 +138,21 @@ export interface FlowNodeData {
   isFaultPath?: boolean;
   description?: string;
 
+  // Start node / Entry criteria data
+  filterFormula?: string;
+  filterLogic?: string;
+  doesRequireRecordChangedToMeetCriteria?: boolean;
+  entryConditions?: Array<{ field: string; operator: string; value: string }>;
+  scheduledPaths?: Array<{
+    name: string;
+    label: string;
+    pathType: string;
+    timeOffset?: number;
+    timeOffsetUnit?: string;
+  }>;
+  schedule?: string;
+  frequency?: string;
+
   // Assignment data
   assignmentItems?: Array<{ field: string; operator: string; value: string }>;
 
@@ -148,7 +163,6 @@ export interface FlowNodeData {
 
   // Record lookup data
   filters?: Array<{ field: string; operator: string; value: string }>;
-  filterLogic?: string;
   getFirstRecordOnly?: boolean;
   sortField?: string;
   sortOrder?: string;

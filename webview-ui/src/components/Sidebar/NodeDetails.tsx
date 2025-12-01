@@ -123,6 +123,29 @@ function formatOperator(operator: string): string {
   return operators[operator] || operator;
 }
 
+// Format trigger type for display
+function formatTriggerType(triggerType: string): string {
+  const types: Record<string, string> = {
+    RecordAfterSave: "After Save",
+    RecordBeforeSave: "Before Save",
+    RecordBeforeDelete: "Before Delete",
+    Scheduled: "Scheduled",
+    PlatformEvent: "Platform Event",
+  };
+  return types[triggerType] || triggerType;
+}
+
+// Format record trigger type for display
+function formatRecordTriggerType(recordTriggerType: string): string {
+  const types: Record<string, string> = {
+    Create: "A record is created",
+    Update: "A record is updated",
+    CreateAndUpdate: "A record is created or updated",
+    Delete: "A record is deleted",
+  };
+  return types[recordTriggerType] || recordTriggerType;
+}
+
 export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
   const config: NodeTypeConfig = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
   const data = node.data;
@@ -143,6 +166,15 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
     Array.isArray(data.screenFields) && data.screenFields.length > 0;
   const hasLoopInfo = Boolean(data.collectionReference);
   const hasRecordInfo = Boolean(data.object) || Boolean(data.inputReference);
+
+  // START node specific checks
+  const isStartNode = node.type === "START";
+  const hasEntryConditions =
+    Array.isArray(data.entryConditions) && data.entryConditions.length > 0;
+  const hasScheduledPaths =
+    Array.isArray(data.scheduledPaths) && data.scheduledPaths.length > 0;
+  const hasTriggerInfo =
+    Boolean(data.triggerType) || Boolean(data.recordTriggerType);
 
   return (
     <div className="flex flex-col h-full">
@@ -213,6 +245,142 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
             <DataRow label="Subflow" value={data.flowName as string} />
           )}
         </Section>
+
+        {/* START Node: Entry Criteria Section */}
+        {isStartNode && hasTriggerInfo && (
+          <Section
+            title="Entry Criteria"
+            icon={<Filter size={12} />}
+            defaultOpen={true}
+          >
+            {data.object && (
+              <DataRow label="Object" value={data.object as string} />
+            )}
+            {data.triggerType && (
+              <DataRow
+                label="Trigger"
+                value={formatTriggerType(data.triggerType as string)}
+              />
+            )}
+            {data.recordTriggerType && (
+              <DataRow
+                label="When"
+                value={formatRecordTriggerType(
+                  data.recordTriggerType as string
+                )}
+              />
+            )}
+            {data.doesRequireRecordChangedToMeetCriteria && (
+              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-800">
+                Only when record changes to meet criteria
+              </div>
+            )}
+
+            {/* Entry Conditions */}
+            {hasEntryConditions && (
+              <div className="mt-3">
+                <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+                  Conditions{" "}
+                  {data.filterLogic && data.filterLogic !== "and" && (
+                    <span className="ml-1 normal-case text-slate-500">
+                      (Logic:{" "}
+                      <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded text-[9px]">
+                        {data.filterLogic}
+                      </code>
+                      )
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {data.entryConditions?.map((cond, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+                    >
+                      <div className="flex items-stretch">
+                        {/* Index badge */}
+                        <div className="bg-slate-200 dark:bg-slate-700 px-2 flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                            {idx + 1}
+                          </span>
+                        </div>
+                        {/* Condition content */}
+                        <div className="flex-1 px-3 py-2">
+                          <div
+                            className="text-xs font-medium text-blue-600 dark:text-blue-400 font-mono truncate"
+                            title={cond.field}
+                          >
+                            {cond.field}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">
+                              {formatOperator(cond.operator)}
+                            </span>
+                            <span
+                              className="text-xs text-green-600 dark:text-green-400 font-mono truncate"
+                              title={cond.value}
+                            >
+                              {cond.value || (
+                                <span className="italic text-slate-400">
+                                  (empty)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Filter Formula */}
+            {data.filterFormula && (
+              <div className="mt-2">
+                <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
+                  Formula
+                </div>
+                <code className="text-xs bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded border border-slate-200 dark:border-slate-700 font-mono block break-all">
+                  {data.filterFormula as string}
+                </code>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* START Node: Scheduled Paths Section */}
+        {isStartNode && hasScheduledPaths && (
+          <Section
+            title="Scheduled Paths"
+            icon={<List size={12} />}
+            defaultOpen={true}
+            badge={data.scheduledPaths?.length}
+          >
+            <div className="space-y-2">
+              {data.scheduledPaths?.map((path, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded border border-slate-200 dark:border-slate-700"
+                >
+                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {path.label}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {path.pathType === "AsyncAfterCommit"
+                      ? "Runs asynchronously after commit"
+                      : path.pathType}
+                    {path.timeOffset !== undefined && path.timeOffsetUnit && (
+                      <span className="ml-1">
+                        ({path.timeOffset} {path.timeOffsetUnit})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         {/* Assignment Items */}
         {hasAssignments && (
@@ -329,17 +497,38 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, edges }) => {
               {data.filters?.map((filter, idx) => (
                 <div
                   key={idx}
-                  className="text-xs bg-slate-50 dark:bg-slate-900/50 p-2 rounded border border-slate-200 dark:border-slate-700"
+                  className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
                 >
-                  <span className="text-blue-600 dark:text-blue-400 font-mono">
-                    {filter.field}
-                  </span>
-                  <span className="text-slate-500 mx-1">
-                    {formatOperator(filter.operator)}
-                  </span>
-                  <span className="text-green-600 dark:text-green-400 font-mono">
-                    {filter.value || "(empty)"}
-                  </span>
+                  <div className="flex items-stretch">
+                    <div className="bg-slate-200 dark:bg-slate-700 px-2 flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        {idx + 1}
+                      </span>
+                    </div>
+                    <div className="flex-1 px-3 py-2">
+                      <div
+                        className="text-xs font-medium text-blue-600 dark:text-blue-400 font-mono truncate"
+                        title={filter.field}
+                      >
+                        {filter.field}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">
+                          {formatOperator(filter.operator)}
+                        </span>
+                        <span
+                          className="text-xs text-green-600 dark:text-green-400 font-mono truncate"
+                          title={filter.value}
+                        >
+                          {filter.value || (
+                            <span className="italic text-slate-400">
+                              (empty)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
