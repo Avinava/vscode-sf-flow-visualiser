@@ -13,6 +13,7 @@ export class FlowPanel {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
   private _webviewReady = false;
+  private _sourceFilePath: string;
 
   private static _context: vscode.ExtensionContext | undefined;
   private static _latestAutoOpenPreference: boolean | undefined;
@@ -36,6 +37,7 @@ export class FlowPanel {
   ) {
     this._panel = panel;
     this._extensionUri = extensionUri;
+    this._sourceFilePath = fileName;
 
     // Set the webview's initial html content
     this._panel.webview.html = this._getWebviewContent(
@@ -134,6 +136,12 @@ export class FlowPanel {
                   requestId, // Include request ID in response
                 });
               });
+            }
+            return;
+            return;
+          case "saveImage":
+            if (message.payload && message.payload.dataUrl) {
+              this._saveImage(message.payload.dataUrl, message.payload.fileName);
             }
             return;
         }
@@ -249,7 +257,7 @@ export class FlowPanel {
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
+          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource}; img-src ${webview.cspSource} data:;">
           <link rel="stylesheet" type="text/css" href="${styleUri}">
           <title>SF Flow Visualizer</title>
         </head>
@@ -287,6 +295,35 @@ export class FlowPanel {
       const currentValue = config.get<boolean>("autoOpenFlowViewer", true);
       FlowPanel.setAutoOpenPreference(currentValue);
     });
+  }
+
+  private async _saveImage(dataUrl: string, defaultFileName: string) {
+    // Remove header
+    const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const defaultUri = workspaceFolder
+      ? vscode.Uri.joinPath(workspaceFolder.uri, defaultFileName)
+      : vscode.Uri.file(
+        path.join(path.dirname(this._sourceFilePath), defaultFileName)
+      );
+
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: defaultUri,
+      filters: {
+        Images: ["png"],
+      },
+    });
+
+    if (uri) {
+      try {
+        await vscode.workspace.fs.writeFile(uri, buffer);
+        vscode.window.showInformationMessage(`Image saved to ${uri.fsPath}`);
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to save image: ${error}`);
+      }
+    }
   }
 }
 

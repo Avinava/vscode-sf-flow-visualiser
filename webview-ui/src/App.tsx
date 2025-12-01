@@ -32,6 +32,7 @@ import type { BoundingBox } from "./hooks/useCanvasInteraction";
 import { getVSCodeApi } from "./utils/vscodeApi";
 
 // ... (keep existing imports)
+import { toPng } from "html-to-image";
 
 // ============================================================================
 // MAIN APP CONTENT
@@ -273,6 +274,71 @@ const AppContent: React.FC = () => {
     });
   }, [autoOpenViewerEnabled, postMessage]);
 
+  const handleExportImage = useCallback(async () => {
+    // Use the inner content div which contains the nodes/edges
+    const flowContent = document.getElementById("flow-canvas-content");
+
+    if (flowContent && visibleNodes.length > 0) {
+      try {
+        // Calculate bounds of all visible nodes
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        visibleNodes.forEach((node) => {
+          minX = Math.min(minX, node.x);
+          minY = Math.min(minY, node.y);
+          maxX = Math.max(maxX, node.x + node.width);
+          maxY = Math.max(maxY, node.y + node.height);
+        });
+
+        // Add padding
+        const padding = 100;
+        const width = maxX - minX + padding * 2 + 200; // Add extra buffer for right-side clipping
+        const height = maxY - minY + padding * 2;
+
+        // Capture with specific dimensions and transform reset
+        const dataUrl = await toPng(flowContent, {
+          backgroundColor: isDark ? "#0f172a" : "#ffffff",
+          width: width,
+          height: height,
+          style: {
+            transform: `translate(${-minX + padding}px, ${-minY + padding}px) scale(1)`,
+            transformOrigin: "0 0",
+            width: `${width}px`,
+            height: `${height}px`,
+            // Override any fixed dimensions from the container
+            maxWidth: "none",
+            maxHeight: "none",
+          },
+          pixelRatio: 2,
+        });
+
+        postMessage({
+          command: "saveImage",
+          payload: {
+            dataUrl,
+            fileName: `${fileName.replace(".flow-meta.xml", "")}.png`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to export image:", error);
+        postMessage({
+          command: "alert",
+          text: "Failed to export image. See console for details.",
+        });
+      }
+    } else {
+      postMessage({
+        command: "alert",
+        text: "No flow content to export.",
+      });
+    }
+  }, [isDark, fileName, postMessage, visibleNodes]);
+
+
+
   return (
     <div
       className={`flex flex-col h-screen w-full overflow-hidden font-sans text-sm transition-colors duration-200
@@ -314,6 +380,7 @@ const AppContent: React.FC = () => {
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
             onToggleAutoOpen={handleToggleAutoOpenPreference}
             onToggleScan={toggleScan}
+            onExportImage={handleExportImage}
           />
 
           {/* Canvas */}
