@@ -15,6 +15,7 @@ import type { Point } from "../hooks/useCanvasInteraction";
 
 const DEFAULT_CORNER_RADIUS = 12;
 const FAULT_HORIZONTAL_OFFSET = 50;
+const FAULT_LANE_CLEARANCE = 60;
 
 // ============================================================================
 // TYPES
@@ -113,6 +114,94 @@ export class ConnectorPathService {
   }
 
   /**
+   * Create a fault GoTo connector path
+   * Goes right from source, down, then left to target's right side
+   * Used when a fault connector targets a node in the main flow (GoTo)
+   *
+   * @param src - Source point (right side of source node)
+   * @param tgt - Target point (right side of target node for main flow, left side for fault lane)
+   * @param options - Path options
+   */
+  static createFaultGoToPath(
+    src: Point,
+    tgt: Point,
+    options: FaultPathOptions & {
+      targetInFaultLane?: boolean;
+      verticalOffset?: number;
+    } = {}
+  ): string {
+    const {
+      cornerRadius = DEFAULT_CORNER_RADIUS,
+      faultIndex = 0,
+      targetInFaultLane = false,
+      verticalOffset = 0,
+    } = options;
+
+    const startClearance =
+      src.x + FAULT_LANE_CLEARANCE + faultIndex * 20 + verticalOffset;
+
+    // If target is already in the fault lane (to the right), route more directly
+    if (targetInFaultLane || tgt.x > src.x + FAULT_HORIZONTAL_OFFSET) {
+      // Target is in fault lane - use a vertical lane CLOSE TO SOURCE to avoid
+      // overlapping with other fault connectors which use lanes further out.
+      // Regular faults use lanes close to target, so we use ~45px from source.
+      const turnX = src.x + 45 + faultIndex * 15 + verticalOffset * 10;
+      const goingDown = tgt.y > src.y;
+      const verticalYStart = goingDown
+        ? src.y + cornerRadius
+        : src.y - cornerRadius;
+      const verticalYEnd = goingDown
+        ? tgt.y - cornerRadius
+        : tgt.y + cornerRadius;
+
+      if (goingDown) {
+        // Target below: right → down → right to target
+        return `M ${src.x} ${src.y}
+                L ${turnX - cornerRadius} ${src.y}
+                Q ${turnX} ${src.y}, ${turnX} ${verticalYStart}
+                L ${turnX} ${verticalYEnd}
+                Q ${turnX} ${tgt.y}, ${turnX + cornerRadius} ${tgt.y}
+                L ${tgt.x} ${tgt.y}`;
+      } else {
+        // Target above: right → up → right to target
+        return `M ${src.x} ${src.y}
+                L ${turnX - cornerRadius} ${src.y}
+                Q ${turnX} ${src.y}, ${turnX} ${verticalYStart}
+                L ${turnX} ${verticalYEnd}
+                Q ${turnX} ${tgt.y}, ${turnX + cornerRadius} ${tgt.y}
+                L ${tgt.x} ${tgt.y}`;
+      }
+    }
+
+    // Target is in main flow (same column or to the left) - go into dedicated fault lane
+    const laneX = Math.max(
+      Math.max(src.x, tgt.x) + FAULT_LANE_CLEARANCE,
+      startClearance
+    );
+    const turnX = laneX;
+
+    // If target is above source, path goes: right → up → left
+    // If target is below source, path goes: right → down → left
+    const goingDown = tgt.y > src.y;
+
+    if (goingDown) {
+      return `M ${src.x} ${src.y}
+              L ${turnX - cornerRadius} ${src.y}
+              Q ${turnX} ${src.y}, ${turnX} ${src.y + cornerRadius}
+              L ${turnX} ${tgt.y - cornerRadius}
+              Q ${turnX} ${tgt.y}, ${turnX - cornerRadius} ${tgt.y}
+              L ${tgt.x} ${tgt.y}`;
+    } else {
+      return `M ${src.x} ${src.y}
+              L ${turnX - cornerRadius} ${src.y}
+              Q ${turnX} ${src.y}, ${turnX} ${src.y - cornerRadius}
+              L ${turnX} ${tgt.y + cornerRadius}
+              Q ${turnX} ${tgt.y}, ${turnX - cornerRadius} ${tgt.y}
+              L ${tgt.x} ${tgt.y}`;
+    }
+  }
+
+  /**
    * Create a fault connector path (exits horizontally from right side)
    *
    * @param src - Source point (right side of node)
@@ -131,28 +220,16 @@ export class ConnectorPathService {
       return this.createStraightPath(src, tgt);
     }
 
-    // Stagger horizontal offset for multiple fault paths
-    const baseOffset = FAULT_HORIZONTAL_OFFSET;
-    const staggerOffset = faultIndex * 25;
-    const safetyMargin = 40; // keep some room before reaching the target column
-    const availableSpace = tgt.x - src.x;
+    // For regular fault paths (not GoTo), use a lane CLOSE TO THE TARGET
+    // to leave room for fault GoTo paths which use lanes close to their source.
+    // This creates visual separation between different fault connectors.
+    const safetyMargin = 50;
 
-    // Dynamically expand the horizontal offset based on the space between
-    // source and target so fault lanes don't crowd the main path.
-    const desiredOffset = baseOffset + staggerOffset;
-    let horizontalOffset = desiredOffset;
-    if (availableSpace > desiredOffset + safetyMargin) {
-      const extraSpace = availableSpace - desiredOffset - safetyMargin;
-      const adaptiveOffset = desiredOffset + Math.min(extraSpace * 0.75, 200);
-      horizontalOffset = Math.min(
-        adaptiveOffset,
-        availableSpace - safetyMargin
-      );
-    }
-
+    // Position the vertical lane close to the target (with stagger for multiple faults)
+    const staggerOffset = faultIndex * 20;
     const horizontalEndX = Math.max(
-      src.x + baseOffset * 0.5,
-      Math.min(src.x + horizontalOffset, tgt.x - safetyMargin)
+      src.x + FAULT_HORIZONTAL_OFFSET, // minimum distance from source
+      tgt.x - safetyMargin - staggerOffset // prefer close to target
     );
 
     if (tgt.y > src.y) {

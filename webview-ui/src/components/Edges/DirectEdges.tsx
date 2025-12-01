@@ -12,6 +12,8 @@ import { ConnectorPathService } from "../../services";
 import { EdgeLabel } from "./EdgeLabel";
 import { calculateBranchLines, BranchLineInfo } from "./BranchLines";
 
+const FAULT_LANE_CLEARANCE = 60;
+
 export interface DirectEdgesProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -339,6 +341,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     const isFault = edge.type === "fault";
     const isFaultEnd = edge.type === "fault-end";
     const isGoTo = edge.isGoTo === true || edge.type === "goto";
+    const isFaultGoTo = isFault && isGoTo;
     const isLoopBack = !isFault && !isFaultEnd && tgtTopY < srcBottomY;
     const isPathHighlighted = highlightedPath?.has(edge.id) ?? false;
     const isHighlighted =
@@ -347,6 +350,8 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         (edge.source === selectedNodeId || edge.target === selectedNodeId));
 
     let path: string;
+    let faultGoToTurnX: number | null = null;
+    let faultGoToLabelY: number | null = null;
     const showAsRed = isFault || isFaultEnd;
     const showAsBlue = isGoTo && !showAsRed;
 
@@ -356,6 +361,56 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         { x: srcRightX, y: srcCenterY },
         { x: tgtLeftX, y: srcCenterY }
       );
+    } else if (isFaultGoTo) {
+      // Fault GoTo: exits right, goes to fault lane, then approaches target
+      const faultEdges = faultEdgesBySource.get(edge.source) || [];
+      const faultIndex = faultEdges.findIndex((e) => e.id === edge.id);
+
+      // Check if target is already in the fault lane (to the right of source)
+      const targetInFaultLane = tgt.x > src.x + src.width;
+
+      // Count how many other fault edges (from any source) also target this node
+      // to stagger vertical positions and avoid overlap
+      let targetFaultIndex = 0;
+      edges.forEach((e) => {
+        if (
+          (e.type === "fault" || e.type === "fault-end") &&
+          e.target === edge.target &&
+          e.id !== edge.id
+        ) {
+          // Check if this other edge's source is below our source
+          const otherSrc = nodeMap.get(e.source);
+          if (otherSrc && otherSrc.y > src.y) {
+            targetFaultIndex++;
+          }
+        }
+      });
+      const verticalOffset = targetFaultIndex * 20;
+
+      if (targetInFaultLane) {
+        // Target is in fault lane - enter from the left side
+        path = ConnectorPathService.createFaultGoToPath(
+          { x: srcRightX, y: srcCenterY },
+          { x: tgtLeftX, y: tgt.y + tgt.height / 2 },
+          { faultIndex, targetInFaultLane: true, verticalOffset }
+        );
+        // Turn point is close to source (45 + offsets)
+        faultGoToTurnX = srcRightX + 45 + faultIndex * 15 + verticalOffset * 10;
+        faultGoToLabelY = srcCenterY - 12;
+      } else {
+        // Target is in main flow - enter from the right side
+        path = ConnectorPathService.createFaultGoToPath(
+          { x: srcRightX, y: srcCenterY },
+          { x: tgt.x + tgt.width, y: tgt.y + tgt.height / 2 },
+          { faultIndex, targetInFaultLane: false }
+        );
+        const laneX = Math.max(
+          Math.max(srcRightX, tgt.x + tgt.width) + FAULT_LANE_CLEARANCE,
+          srcRightX + FAULT_LANE_CLEARANCE + faultIndex * 20
+        );
+        faultGoToTurnX = laneX;
+        faultGoToLabelY = srcCenterY - 12;
+      }
     } else if (isFault) {
       // Get fault index for staggering
       const faultEdges = faultEdgesBySource.get(edge.source) || [];
@@ -389,7 +444,11 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     let labelX = (srcCenterX + tgtCenterX) / 2;
     let labelY = srcBottomY + 20;
 
-    if (isFault || isFaultEnd) {
+    if (isFaultGoTo && faultGoToTurnX !== null) {
+      // Place label midway across the initial horizontal segment with correct clearance
+      labelX = (srcRightX + faultGoToTurnX) / 2;
+      labelY = faultGoToLabelY ?? srcCenterY - 12;
+    } else if (isFault || isFaultEnd) {
       labelX = (srcRightX + tgtLeftX) / 2;
       labelY = srcCenterY - 12;
     } else if (isLoopBack) {
