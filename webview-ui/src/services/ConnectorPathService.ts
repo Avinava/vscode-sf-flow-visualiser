@@ -8,20 +8,33 @@
  */
 
 import type { Point } from "../hooks/useCanvasInteraction";
+import { FAULT_LANE_CLEARANCE, GRID_H_GAP } from "../constants/dimensions";
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const DEFAULT_CORNER_RADIUS = 12;
-const FAULT_HORIZONTAL_OFFSET = 50;
-const FAULT_LANE_CLEARANCE = 60;
-const FAULT_GOTO_SOURCE_OFFSET = 28;
-const FAULT_GOTO_STACK_OFFSET = 14;
+const FAULT_LANE_OFFSET = FAULT_LANE_CLEARANCE;
+const FAULT_HORIZONTAL_OFFSET = Math.max(
+  Math.round(FAULT_LANE_OFFSET * 0.65),
+  GRID_H_GAP + 40
+);
+const FAULT_GOTO_SOURCE_OFFSET = Math.max(
+  Math.round(FAULT_LANE_OFFSET * 0.45),
+  GRID_H_GAP + 24
+);
+const FAULT_GOTO_STACK_OFFSET = Math.max(Math.round(GRID_H_GAP / 3), 16);
 const FAULT_GOTO_VERTICAL_STACK_MULTIPLIER = 10;
-const REGULAR_FAULT_TARGET_CLEARANCE = 18;
-const REGULAR_FAULT_STACK_OFFSET = 14;
-const REGULAR_FAULT_MIN_TARGET_CLEARANCE = 12;
+const REGULAR_FAULT_TARGET_CLEARANCE = Math.max(
+  Math.round(FAULT_LANE_OFFSET * 0.25),
+  24
+);
+const REGULAR_FAULT_STACK_OFFSET = Math.max(Math.round(GRID_H_GAP / 2.5), 18);
+const REGULAR_FAULT_MIN_TARGET_CLEARANCE = Math.max(
+  Math.round(GRID_H_GAP / 2),
+  20
+);
 
 // ============================================================================
 // TYPES

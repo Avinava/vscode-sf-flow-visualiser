@@ -21,6 +21,7 @@ import {
 } from "./branchCalculator";
 import { getBranchEdgesForNode, sortBranchEdges } from "../utils/graph";
 import { DEFAULT_LAYOUT_CONFIG } from "./layoutConfig";
+import { FAULT_LANE_CLEARANCE } from "../constants/dimensions";
 
 export interface AutoLayoutOptions {
   config?: LayoutConfig;
@@ -75,6 +76,10 @@ export class TreeLayoutEngine {
   private getNodeWidth(nodeId: string): number {
     const node = this.nodeMap.get(nodeId);
     return node?.width || this.config.node.width;
+  }
+
+  private getFaultLaneGap(): number {
+    return Math.max(FAULT_LANE_CLEARANCE, this.config.grid.hGap * 2);
   }
 
   private identifyFaultOnlyNodes(nodes: FlowNode[]): Set<string> {
@@ -410,6 +415,7 @@ export class TreeLayoutEngine {
 
     const sourceWidth = this.getNodeWidth(nodeId);
     const sourceRight = centerX + sourceWidth / 2;
+    const faultLaneGap = this.getFaultLaneGap();
 
     faultOuts.forEach((edge, faultIndex) => {
       const targetNode = this.nodeMap.get(edge.target);
@@ -433,12 +439,11 @@ export class TreeLayoutEngine {
       if (this.faultTargetPositioned.has(edge.target) && !isFaultEnd) return;
       if (localVisited.has(edge.target)) return;
 
-      const laneFromSource =
-        sourceRight + this.config.grid.hGap + targetWidth / 2;
+      const laneFromSource = sourceRight + faultLaneGap + targetWidth / 2;
       const laneFromContent =
-        this.contentMaxRight + this.config.grid.hGap + targetWidth / 2;
+        this.contentMaxRight + faultLaneGap + targetWidth / 2;
       const laneFromPrev =
-        this.maxFaultX + (faultIndex ? targetWidth + this.config.grid.hGap : 0);
+        this.maxFaultX + (faultIndex ? targetWidth + faultLaneGap : 0);
       const laneCenterX = Math.max(
         laneFromSource,
         laneFromContent,

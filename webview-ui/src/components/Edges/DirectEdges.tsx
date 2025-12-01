@@ -7,12 +7,14 @@
 
 import React, { useMemo } from "react";
 import type { FlowNode, FlowEdge } from "../../types";
-import { CONNECTOR_COLORS, CONNECTOR_WIDTHS } from "../../constants";
+import {
+  CONNECTOR_COLORS,
+  CONNECTOR_WIDTHS,
+  FAULT_LANE_CLEARANCE,
+} from "../../constants";
 import { ConnectorPathService } from "../../services";
 import { EdgeLabel } from "./EdgeLabel";
 import { calculateBranchLines, BranchLineInfo } from "./BranchLines";
-
-const FAULT_LANE_CLEARANCE = 60;
 
 export interface DirectEdgesProps {
   nodes: FlowNode[];

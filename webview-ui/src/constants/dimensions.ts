@@ -35,6 +35,13 @@ export const GRID_H_GAP = 60; // Reduced horizontal gap for tighter layout
 export const GRID_V_GAP = 70; // Adjusted vertical gap
 
 // ============================================================================
+// FAULT LANE SPACING
+// Keeps fault nodes/connectors comfortably separated from main content
+// ============================================================================
+
+export const FAULT_LANE_CLEARANCE = Math.max(GRID_H_GAP * 2.5, 150);
+
+// ============================================================================
 // CANVAS POSITIONING
 // ============================================================================
 
