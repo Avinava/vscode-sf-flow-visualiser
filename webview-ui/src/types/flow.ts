@@ -136,10 +136,59 @@ export interface FlowNodeData {
   triggerType?: string;
   recordTriggerType?: string;
   isFaultPath?: boolean;
-  // Additional Salesforce properties
+  description?: string;
+
+  // Assignment data
+  assignmentItems?: Array<{ field: string; operator: string; value: string }>;
+
+  // Record operation data
+  inputAssignments?: Array<{ field: string; value: string }>;
+  inputReference?: string;
+  storeOutputAutomatically?: boolean;
+
+  // Record lookup data
+  filters?: Array<{ field: string; operator: string; value: string }>;
+  filterLogic?: string;
+  getFirstRecordOnly?: boolean;
+  sortField?: string;
+  sortOrder?: string;
+
+  // Decision data
+  rules?: Array<{
+    name: string;
+    label: string;
+    conditionLogic: string;
+    conditions: Array<{ field: string; operator: string; value: string }>;
+  }>;
+  defaultConnectorLabel?: string;
+  hasImplicitDefaultEnd?: boolean;
+
+  // Loop data
+  collectionReference?: string;
+  iterationOrder?: string;
+  assignNextValueToReference?: string;
+
+  // Screen data
+  screenFields?: Array<{
+    name: string;
+    type: string;
+    label: string;
+    required: boolean;
+  }>;
+  allowBack?: boolean;
+  allowFinish?: boolean;
+  allowPause?: boolean;
+  showHeader?: boolean;
+  showFooter?: boolean;
+
+  // Subflow data
+  flowName?: string;
+
+  // Action data
   actionName?: string;
   actionType?: string;
-  description?: string;
+
+  // Allow additional properties
   [key: string]: unknown;
 }
 

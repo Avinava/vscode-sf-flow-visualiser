@@ -33,12 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         style={{ width: isOpen ? 320 : 0 }}
       >
         {/* Stats */}
-        <FlowStats
-          nodeCount={nodes.length}
-          edgeCount={edges.length}
-          nodes={nodes}
-          edges={edges}
-        />
+        <FlowStats nodeCount={nodes.length} edgeCount={edges.length} />
 
         {/* Details Panel */}
         <div className="flex-1 overflow-y-auto">

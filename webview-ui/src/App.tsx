@@ -146,8 +146,12 @@ const AppContent: React.FC = () => {
     (node: typeof selectedNode) => {
       clearEdgeSelection();
       selectNode(node);
+      // Auto-open sidebar when a node is selected
+      if (node && !sidebarOpen) {
+        setSidebarOpen(true);
+      }
     },
-    [clearEdgeSelection, selectNode]
+    [clearEdgeSelection, selectNode, sidebarOpen]
   );
 
   // Handle edge click - clear node selection when selecting an edge
