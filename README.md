@@ -57,6 +57,12 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
 - 💾 **Persistent Preferences** - Theme and animation settings are remembered across sessions
 
+### What's New in 1.1.5
+
+- **Sidebar**: New sidebar for viewing node details and properties
+- **Conditions**: Enhanced visualization of decision conditions and outcomes
+- Fixed an issue where branch lines from different decision nodes could appear connected. Now, decision subtrees are visually distinct, ensuring clarity in complex flows.
+
 ### What's New in 1.1.4
 
 - Start nodes that only define scheduled paths now mirror Salesforce's canvas by auto-terminating the "Run Immediately" branch with an End node, so the async lane is the only vertical column
