@@ -17,7 +17,7 @@ import type {
   NodeType,
   FlowNodeData,
 } from "../types";
-import { NODE_WIDTH, NODE_HEIGHT } from "../constants";
+import { NODE_WIDTH, START_NODE_WIDTH, NODE_HEIGHT } from "../constants";
 import { buildFlowRelationships } from "./buildFlowModel";
 
 // ============================================================================
@@ -210,7 +210,7 @@ function parseStartElement(startEl: Element): StartNodeResult {
     label: startLabel,
     x: 0,
     y: 0,
-    width: NODE_WIDTH,
+    width: START_NODE_WIDTH,
     height: startHeight,
     data: {
       object: obj,

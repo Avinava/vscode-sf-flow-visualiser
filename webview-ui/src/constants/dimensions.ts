@@ -15,6 +15,7 @@
 // ============================================================================
 
 export const NODE_WIDTH = 280; // Wider to prevent text truncation
+export const START_NODE_WIDTH = 320; // Even wider for start nodes with trigger details
 export const NODE_HEIGHT = 56;
 export const NODE_ICON_SIZE = 48;
 

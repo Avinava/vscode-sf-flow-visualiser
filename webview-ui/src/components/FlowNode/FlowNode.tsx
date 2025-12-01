@@ -172,10 +172,9 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         <div
           className={`
             rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
-            ${
-              isSelected
-                ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
-                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+            ${isSelected
+              ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
             }
             bg-white dark:bg-slate-800
           `}
@@ -230,10 +229,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
               )}
               {node.data.triggerType && (
                 <div className="flex items-baseline">
-                  <span className="text-slate-500 dark:text-slate-400 mr-1">
+                  <span className="text-slate-500 dark:text-slate-400 mr-1 whitespace-nowrap">
                     Optimize for:
                   </span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {getOptimizeForLabel(node.data.triggerType as string)}
                   </span>
                 </div>
@@ -277,12 +276,11 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       <div
         className={`
           rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
-          ${
-            isSelected
-              ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
-              : isCollapsed
-                ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
-                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+          ${isSelected
+            ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+            : isCollapsed
+              ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
+              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
           }
           ${isCollapsed ? "bg-amber-50 dark:bg-amber-950/30" : "bg-white dark:bg-slate-800"}
         `}
