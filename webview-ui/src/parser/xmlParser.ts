@@ -119,9 +119,7 @@ function parseEntryConditions(
 /**
  * Parse scheduled paths from start element
  */
-function parseScheduledPaths(
-  startEl: Element
-): Array<{
+function parseScheduledPaths(startEl: Element): Array<{
   name: string;
   label: string;
   pathType: string;
@@ -916,6 +914,10 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   // Parse start element
   if (startEl) {
     const { node, edges: startEdges } = parseStartElement(startEl);
+    // Add flow description to START node for display in sidebar
+    if (metadata.description) {
+      node.data.description = metadata.description;
+    }
     nodes.push(node);
     edges.push(...startEdges);
   }
