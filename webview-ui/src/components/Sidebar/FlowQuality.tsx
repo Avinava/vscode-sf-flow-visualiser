@@ -280,7 +280,22 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
                     })}
                 </div>
             </div>
-        </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-center">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Powered by{" "}
+                    <a
+                        href="https://github.com/Flow-Scanner/lightning-flow-scanner"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                        lightning-flow-scanner
+                    </a>
+                </p>
+            </div>
+        </div >
     );
 };
 
