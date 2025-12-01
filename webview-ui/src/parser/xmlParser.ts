@@ -743,14 +743,43 @@ function generateEndNodes(
   const resultNodes = [...nodes];
   const resultEdges = [...edges];
 
-  // Find nodes with outgoing connections
-  const nodesWithOutgoing = new Set(edges.map((e) => e.source));
-
-  // Track nodes reached via fault connectors
+  // Track nodes that have at least one non-fault outgoing connector
+  const nodesWithRegularOutgoing = new Set<string>();
+  // Track nodes reached via (or continuing along) fault paths
   const faultReachedNodes = new Set<string>();
-  edges.forEach((e) => {
-    if (e.type === "fault") {
-      faultReachedNodes.add(e.target);
+  const incomingEdges = new Map<string, FlowEdge[]>();
+
+  edges.forEach((edge) => {
+    if (!incomingEdges.has(edge.target)) {
+      incomingEdges.set(edge.target, []);
+    }
+    incomingEdges.get(edge.target)!.push(edge);
+
+    if (edge.type !== "fault" && edge.type !== "fault-end") {
+      nodesWithRegularOutgoing.add(edge.source);
+    }
+
+    if (edge.type === "fault" || edge.type === "fault-end") {
+      faultReachedNodes.add(edge.target);
+    }
+  });
+
+  // Nodes whose only incoming connectors are faults should inherit fault styling
+  // But nodes with ANY normal incoming connector are part of the main flow
+  incomingEdges.forEach((incoming, nodeId) => {
+    const hasNormalIncoming = incoming.some(
+      (edge) => edge.type !== "fault" && edge.type !== "fault-end"
+    );
+    if (hasNormalIncoming) {
+      // This node is reachable via normal path, remove from fault set
+      faultReachedNodes.delete(nodeId);
+    } else if (
+      incoming.length > 0 &&
+      incoming.every(
+        (edge) => edge.type === "fault" || edge.type === "fault-end"
+      )
+    ) {
+      faultReachedNodes.add(nodeId);
     }
   });
 
@@ -804,7 +833,7 @@ function generateEndNodes(
 
   // Find terminal nodes (no outgoing edges, not START)
   const terminalNodes = nodes.filter(
-    (node) => !nodesWithOutgoing.has(node.id) && node.type !== "START"
+    (node) => !nodesWithRegularOutgoing.has(node.id) && node.type !== "START"
   );
 
   terminalNodes.forEach((node) => {

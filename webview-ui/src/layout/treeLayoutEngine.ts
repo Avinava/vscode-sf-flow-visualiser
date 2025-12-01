@@ -9,7 +9,11 @@
  */
 
 import type { FlowNode, FlowEdge, LayoutConfig } from "../types";
-import { createNodeMap, createOutgoingMap } from "./layoutHelpers";
+import {
+  createIncomingMap,
+  createNodeMap,
+  createOutgoingMap,
+} from "./layoutHelpers";
 import { findMergePointForBranches } from "./mergePointFinder";
 import {
   calculateBranchDepth,
@@ -41,8 +45,11 @@ export class TreeLayoutEngine {
   private config: LayoutConfig;
   private nodeMap: Map<string, FlowNode>;
   private outgoing: Map<string, FlowEdge[]>;
+  private incoming: Map<string, FlowEdge[]>;
+  private faultOnlyNodes: Set<string>;
   private positions: Map<string, { x: number; y: number }>;
   private maxFaultX: number;
+  private contentMaxRight: number;
   private faultTargetPositioned: Set<string>;
 
   constructor(
@@ -53,8 +60,11 @@ export class TreeLayoutEngine {
     this.config = options.config || DEFAULT_LAYOUT_CONFIG;
     this.nodeMap = createNodeMap(nodes);
     this.outgoing = createOutgoingMap(edges);
+    this.incoming = createIncomingMap(edges);
+    this.faultOnlyNodes = this.identifyFaultOnlyNodes(nodes);
     this.positions = new Map();
-    this.maxFaultX = this.config.start.x + this.getColWidth() * 1.5;
+    this.maxFaultX = this.config.start.x + this.getColWidth();
+    this.contentMaxRight = this.config.start.x + this.config.node.width / 2;
     this.faultTargetPositioned = new Set();
   }
 
@@ -62,11 +72,46 @@ export class TreeLayoutEngine {
     return this.config.node.width + this.config.grid.hGap;
   }
 
+  private getNodeWidth(nodeId: string): number {
+    const node = this.nodeMap.get(nodeId);
+    return node?.width || this.config.node.width;
+  }
+
+  private identifyFaultOnlyNodes(nodes: FlowNode[]): Set<string> {
+    const result = new Set<string>();
+
+    nodes.forEach((node) => {
+      if (node.type === "START") return;
+      const incomingEdges = this.incoming.get(node.id) || [];
+      if (
+        incomingEdges.length > 0 &&
+        incomingEdges.every(
+          (edge) => edge.type === "fault" || edge.type === "fault-end"
+        )
+      ) {
+        result.add(node.id);
+      } else if (
+        incomingEdges.length === 0 &&
+        node.data?.isFaultPath === true
+      ) {
+        // End nodes generated for fault paths won't have incoming edges yet
+        result.add(node.id);
+      }
+    });
+
+    return result;
+  }
+
   private getNodeHeight(nodeId: string): number {
     const node = this.nodeMap.get(nodeId);
     return node?.height || this.config.node.height;
   }
 
+  private updateContentMaxRight(nodeId: string, centerX: number): void {
+    if (this.faultOnlyNodes.has(nodeId)) return;
+    const halfWidth = this.getNodeWidth(nodeId) / 2;
+    this.contentMaxRight = Math.max(this.contentMaxRight, centerX + halfWidth);
+  }
   /**
    * Layout all nodes starting from the start node
    */
@@ -101,6 +146,7 @@ export class TreeLayoutEngine {
 
     // Position this node
     this.positions.set(nodeId, { x: centerX, y: currentY });
+    this.updateContentMaxRight(nodeId, centerX);
 
     // Calculate Y position for next node
     const nodeHeight = this.getNodeHeight(nodeId);
@@ -360,46 +406,76 @@ export class TreeLayoutEngine {
       (e) => e.type === "fault" || e.type === "fault-end"
     );
 
-    const colWidth = this.getColWidth();
+    if (faultOuts.length === 0) return;
+
+    const sourceWidth = this.getNodeWidth(nodeId);
+    const sourceRight = centerX + sourceWidth / 2;
 
     faultOuts.forEach((edge, faultIndex) => {
       const targetNode = this.nodeMap.get(edge.target);
+      const targetWidth = targetNode?.width || this.config.node.width;
+      const targetHeight = targetNode?.height || this.config.node.height;
       const isFaultEnd =
         edge.type === "fault-end" || targetNode?.type === "END";
 
-      // Skip if already positioned
-      if (edge.isGoTo && this.positions.has(edge.target)) return;
-      if (this.faultTargetPositioned.has(edge.target) && !isFaultEnd) return;
+      const incomingEdges = this.incoming.get(edge.target) || [];
+      const hasNonFaultIncoming = incomingEdges.some(
+        (incomingEdge) =>
+          incomingEdge.type !== "fault" && incomingEdge.type !== "fault-end"
+      );
 
-      if (!localVisited.has(edge.target)) {
-        const faultX = Math.max(
-          centerX + colWidth * 1.5,
-          this.maxFaultX + colWidth * 0.5 * faultIndex
-        );
-
-        if (isFaultEnd) {
-          // Position END node at same Y level for straight horizontal line
-          const srcCenterY = currentY + nodeHeight / 2;
-          const endNodeHeight = 40;
-          const endNodeY = srcCenterY - endNodeHeight / 2;
-
-          this.positions.set(edge.target, { x: faultX, y: endNodeY });
-          localVisited.add(edge.target);
-        } else {
-          // Regular fault path
-          this.faultTargetPositioned.add(edge.target);
-          this.layoutNode(
-            edge.target,
-            faultX,
-            currentY +
-              faultIndex * (this.config.node.height + this.config.grid.vGap),
-            undefined,
-            new Set(localVisited)
-          );
-        }
-
-        this.maxFaultX = Math.max(this.maxFaultX, faultX + colWidth * 0.5);
+      // Allow GoTo connectors to rely on the regular layout when the target is
+      // already part of the primary path. Otherwise, fall back to fault layout.
+      if (edge.isGoTo && hasNonFaultIncoming) {
+        return;
       }
+
+      if (this.faultTargetPositioned.has(edge.target) && !isFaultEnd) return;
+      if (localVisited.has(edge.target)) return;
+
+      const laneFromSource =
+        sourceRight + this.config.grid.hGap + targetWidth / 2;
+      const laneFromContent =
+        this.contentMaxRight + this.config.grid.hGap + targetWidth / 2;
+      const laneFromPrev =
+        this.maxFaultX + (faultIndex ? targetWidth + this.config.grid.hGap : 0);
+      const laneCenterX = Math.max(
+        laneFromSource,
+        laneFromContent,
+        laneFromPrev
+      );
+
+      if (isFaultEnd) {
+        // Position END node at same Y level for straight horizontal line
+        const srcCenterY = currentY + nodeHeight / 2;
+        const endNodeHeight = 40;
+        const endNodeY = srcCenterY - endNodeHeight / 2;
+
+        this.positions.set(edge.target, { x: laneCenterX, y: endNodeY });
+        this.faultTargetPositioned.add(edge.target);
+        localVisited.add(edge.target);
+      } else {
+        // Regular fault path target (assignment, screen, etc.)
+        this.faultTargetPositioned.add(edge.target);
+
+        const dropOffset = this.faultOnlyNodes.has(edge.target)
+          ? nodeHeight + this.config.grid.vGap
+          : 0;
+        const stackOffset = faultIndex
+          ? faultIndex * (targetHeight + Math.max(this.config.grid.vGap, 40))
+          : 0;
+        const targetY = currentY + dropOffset + stackOffset;
+
+        this.layoutNode(
+          edge.target,
+          laneCenterX,
+          targetY,
+          undefined,
+          new Set(localVisited)
+        );
+      }
+
+      this.maxFaultX = Math.max(this.maxFaultX, laneCenterX + targetWidth / 2);
     });
   }
 
