@@ -4,13 +4,15 @@
  * Collapsible sidebar showing flow stats and selected node details.
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { ChevronLeftCircle, ChevronRightCircle, Info, Activity } from "lucide-react";
 import type { FlowNode, FlowEdge } from "../../types";
 import type { FlowQualityMetrics } from "../../utils/flow-scanner";
 import { FlowStats } from "./FlowStats";
 import { NodeDetails } from "./NodeDetails";
 import { FlowQuality } from "./FlowQuality";
+
+export type TabView = "details" | "quality";
 
 export interface SidebarProps {
   isOpen: boolean;
@@ -19,9 +21,9 @@ export interface SidebarProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
   qualityMetrics: FlowQualityMetrics | null;
+  activeTab: TabView;
+  onTabChange: (tab: TabView) => void;
 }
-
-type TabView = "details" | "quality";
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
@@ -30,9 +32,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   nodes,
   edges,
   qualityMetrics,
+  activeTab,
+  onTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabView>("details");
-
   // Show quality tab if there are violations
   const hasViolations = (qualityMetrics?.totalViolations || 0) > 0;
   return (
@@ -49,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {qualityMetrics && (
           <div className="flex border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
             <button
-              onClick={() => setActiveTab("details")}
+              onClick={() => onTabChange("details")}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "details"
                 ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -59,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Details
             </button>
             <button
-              onClick={() => setActiveTab("quality")}
+              onClick={() => onTabChange("quality")}
               className={`flex-1 px-3 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "quality"
                 ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"

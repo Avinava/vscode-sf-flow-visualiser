@@ -113,10 +113,19 @@ export class FlowPanel {
             // Handle flow quality analysis request
             if (message.payload && typeof message.payload === "string") {
               const flowXml = message.payload;
+              const requestId = message.requestId; // Pass through request ID for matching
+              console.log("[FlowPanel] Received analyzeFlow request", {
+                requestId,
+              });
               analyzeFlowXML(flowXml).then((result) => {
+                console.log("[FlowPanel] Sending analysis result", {
+                  requestId,
+                  violationCount: result.violations.length,
+                });
                 this._panel.webview.postMessage({
                   command: "flowAnalysisResult",
                   payload: result,
+                  requestId, // Include request ID in response
                 });
               });
             }
@@ -261,7 +270,7 @@ export class FlowPanel {
     const config = vscode.workspace.getConfiguration("sf-flow-visualizer");
     const target =
       vscode.workspace.workspaceFolders &&
-        vscode.workspace.workspaceFolders.length > 0
+      vscode.workspace.workspaceFolders.length > 0
         ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
 

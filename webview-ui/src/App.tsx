@@ -36,8 +36,12 @@ import type { BoundingBox } from "./hooks/useCanvasInteraction";
 const AppContent: React.FC = () => {
   // Sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"details" | "quality">(
+    "details"
+  );
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
-  const [qualityMetrics, setQualityMetrics] = useState<FlowQualityMetrics | null>(null);
+  const [qualityMetrics, setQualityMetrics] =
+    useState<FlowQualityMetrics | null>(null);
 
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
@@ -86,6 +90,37 @@ const AppContent: React.FC = () => {
       setQualityMetrics(null);
     }
   }, [parsedData.xmlContent]);
+
+  // Create mapping of violations by element name for node badges
+  const violationsByElement = useMemo(() => {
+    if (!qualityMetrics)
+      return new Map<
+        string,
+        Array<{
+          severity: "error" | "warning" | "note";
+          rule: string;
+          message: string;
+        }>
+      >();
+
+    const map = new Map<
+      string,
+      Array<{
+        severity: "error" | "warning" | "note";
+        rule: string;
+        message: string;
+      }>
+    >();
+    qualityMetrics.violations.forEach((violation) => {
+      if (violation.elementName) {
+        if (!map.has(violation.elementName)) {
+          map.set(violation.elementName, []);
+        }
+        map.get(violation.elementName)!.push(violation);
+      }
+    });
+    return map;
+  }, [qualityMetrics]);
 
   // Filter visible nodes and edges
   const visibleNodes = useMemo(() => {
@@ -152,19 +187,6 @@ const AppContent: React.FC = () => {
     edges: parsedData.edges,
   });
 
-  // Handle node selection - clear edge selection when selecting a node
-  const handleSelectNode = useCallback(
-    (node: typeof selectedNode) => {
-      clearEdgeSelection();
-      selectNode(node);
-      // Auto-open sidebar when a node is selected
-      if (node && !sidebarOpen) {
-        setSidebarOpen(true);
-      }
-    },
-    [clearEdgeSelection, selectNode, sidebarOpen]
-  );
-
   // Handle edge click - clear node selection when selecting an edge
   const handleEdgeClick = useCallback(
     (edgeId: string) => {
@@ -220,6 +242,8 @@ const AppContent: React.FC = () => {
           nodes={parsedData.nodes}
           edges={parsedData.edges}
           qualityMetrics={qualityMetrics}
+          activeTab={sidebarTab}
+          onTabChange={setSidebarTab}
         />
 
         {/* CANVAS AREA */}
@@ -253,18 +277,23 @@ const AppContent: React.FC = () => {
               onEdgeClick={handleEdgeClick}
             />
 
-            {/* Nodes */}
+            {/* Nodes - render visible nodes */}
             {visibleNodes.map((node) => (
               <FlowNodeComponent
                 key={node.id}
                 node={node}
                 isSelected={selectedNode?.id === node.id}
-                isGoToTarget={goToTargetCounts.has(node.id)}
+                isGoToTarget={(goToTargetCounts.get(node.id) ?? 0) > 0}
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
                 isCollapsed={isCollapsed(node.id)}
                 isBranchingNode={branchingNodeIds.has(node.id)}
-                onSelect={handleSelectNode}
+                onSelect={selectNode}
                 onToggleCollapse={toggleCollapse}
+                violations={violationsByElement.get(node.id) || []}
+                onOpenQualityTab={() => {
+                  setSidebarTab("quality");
+                  setSidebarOpen(true);
+                }}
               />
             ))}
           </FlowCanvas>
