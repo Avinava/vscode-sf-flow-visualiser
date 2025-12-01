@@ -230,13 +230,13 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
                             >
                                 {/* Violation header - always visible */}
                                 <div
-                                    className="p-3 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="p-2 cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => description && toggleExpanded(violationKey)}
                                 >
                                     <div className="flex items-start gap-2">
                                         <Icon className={`w-4 h-4 ${style.color} flex-shrink-0 mt-0.5`} />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
                                                 <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
                                                     {violation.ruleLabel}
                                                 </span>
@@ -247,7 +247,7 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
                                                 </span>
                                             </div>
                                             {violation.elementName && (
-                                                <div className="text-[10px] text-slate-600 dark:text-slate-400 mb-1 font-mono bg-white/50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded inline-block">
+                                                <div className="text-[10px] text-slate-600 dark:text-slate-400 font-mono bg-white/50 dark:bg-slate-800/50 px-1.5 py-0.5 rounded inline-block">
                                                     <span className="font-medium">{violation.elementType || "node"}:</span> {violation.elementName}
                                                 </div>
                                             )}
