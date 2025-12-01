@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.1.5] - 2025-12-01
+
+### Fixed
+
+- Branch lines from different decision nodes are now visually separated and do not appear connected, ensuring clear visual scoping of decision subtrees
+
+### Added
+
+- **Flow Quality Analysis**: Integrated `lightning-flow-scanner` to provide real-time quality analysis of flows
+- **Quality Tab**: Dedicated tab in the sidebar to view errors, warnings, and notes
+- **Sidebar**: New sidebar for viewing node details and properties
+- **Conditions**: Enhanced visualization of decision conditions and outcomes
+- **More**: Various improvements to flow rendering and user experience
+
 ## [1.1.4] - 2025-12-01
 
 ### Fixed

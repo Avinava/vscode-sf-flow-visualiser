@@ -24,9 +24,14 @@ import {
 // Import utilities
 import { computeVisibility, getBranchingNodeIds } from "./utils/collapse";
 import { calculateComplexity } from "./utils/complexity";
+import { analyzeFlow, type FlowQualityMetrics } from "./utils/flow-scanner";
 
 // Import types
 import type { BoundingBox } from "./hooks/useCanvasInteraction";
+
+import { getVSCodeApi } from "./utils/vscodeApi";
+
+// ... (keep existing imports)
 
 // ============================================================================
 // MAIN APP CONTENT
@@ -35,7 +40,51 @@ import type { BoundingBox } from "./hooks/useCanvasInteraction";
 const AppContent: React.FC = () => {
   // Sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"details" | "quality">(
+    "details"
+  );
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
+  const [qualityMetrics, setQualityMetrics] =
+    useState<FlowQualityMetrics | null>(null);
+
+  // Get VS Code API
+  const vscode = useMemo(() => getVSCodeApi(), []);
+
+  // Scan state - persisted, defaults to true
+  const [scanEnabled, setScanEnabled] = useState<boolean>(() => {
+    const state = vscode?.getState() as { scanEnabled?: boolean } | undefined;
+    return state?.scanEnabled ?? true;
+  });
+
+  const toggleScan = useCallback(() => {
+    setScanEnabled((prev) => {
+      const newValue = !prev;
+      if (vscode) {
+        const currentState = vscode.getState() || {};
+        vscode.setState({ ...currentState, scanEnabled: newValue });
+        vscode.postMessage({
+          command: "saveState",
+          payload: { key: "scanEnabled", value: newValue },
+        });
+      }
+      return newValue;
+    });
+  }, [vscode]);
+
+  // Listen for state restoration from extension host
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const { command, payload } = event.data;
+      if (command === "restoreState" && payload) {
+        if (payload.scanEnabled !== undefined) {
+          setScanEnabled(payload.scanEnabled);
+        }
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
@@ -75,6 +124,56 @@ const AppContent: React.FC = () => {
     if (parsedData.nodes.length === 0) return null;
     return calculateComplexity(parsedData.nodes, parsedData.edges);
   }, [parsedData.nodes, parsedData.edges]);
+
+  // Analyze flow quality when XML changes or scan is toggled
+  useEffect(() => {
+    let isMounted = true;
+
+    if (parsedData.xmlContent && scanEnabled) {
+      analyzeFlow(parsedData.xmlContent).then((metrics) => {
+        if (isMounted) {
+          setQualityMetrics(metrics);
+        }
+      });
+    } else {
+      setQualityMetrics(null);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [parsedData.xmlContent, scanEnabled]);
+
+  // Create mapping of violations by element name for node badges
+  const violationsByElement = useMemo(() => {
+    if (!qualityMetrics)
+      return new Map<
+        string,
+        Array<{
+          severity: "error" | "warning" | "note";
+          rule: string;
+          message: string;
+        }>
+      >();
+
+    const map = new Map<
+      string,
+      Array<{
+        severity: "error" | "warning" | "note";
+        rule: string;
+        message: string;
+      }>
+    >();
+    qualityMetrics.violations.forEach((violation) => {
+      if (violation.elementName) {
+        if (!map.has(violation.elementName)) {
+          map.set(violation.elementName, []);
+        }
+        map.get(violation.elementName)!.push(violation);
+      }
+    });
+    return map;
+  }, [qualityMetrics]);
 
   // Filter visible nodes and edges
   const visibleNodes = useMemo(() => {
@@ -141,15 +240,6 @@ const AppContent: React.FC = () => {
     edges: parsedData.edges,
   });
 
-  // Handle node selection - clear edge selection when selecting a node
-  const handleSelectNode = useCallback(
-    (node: typeof selectedNode) => {
-      clearEdgeSelection();
-      selectNode(node);
-    },
-    [clearEdgeSelection, selectNode]
-  );
-
   // Handle edge click - clear node selection when selecting an edge
   const handleEdgeClick = useCallback(
     (edgeId: string) => {
@@ -204,6 +294,9 @@ const AppContent: React.FC = () => {
           selectedNode={selectedNode}
           nodes={parsedData.nodes}
           edges={parsedData.edges}
+          qualityMetrics={qualityMetrics}
+          activeTab={sidebarTab}
+          onTabChange={setSidebarTab}
         />
 
         {/* CANVAS AREA */}
@@ -213,12 +306,14 @@ const AppContent: React.FC = () => {
             scale={state.scale}
             autoLayoutEnabled={autoLayoutEnabled}
             autoOpenEnabled={autoOpenViewerEnabled}
+            scanEnabled={scanEnabled}
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onResetView={resetView}
             onFitToView={fitToView}
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
             onToggleAutoOpen={handleToggleAutoOpenPreference}
+            onToggleScan={toggleScan}
           />
 
           {/* Canvas */}
@@ -237,18 +332,23 @@ const AppContent: React.FC = () => {
               onEdgeClick={handleEdgeClick}
             />
 
-            {/* Nodes */}
+            {/* Nodes - render visible nodes */}
             {visibleNodes.map((node) => (
               <FlowNodeComponent
                 key={node.id}
                 node={node}
                 isSelected={selectedNode?.id === node.id}
-                isGoToTarget={goToTargetCounts.has(node.id)}
+                isGoToTarget={(goToTargetCounts.get(node.id) ?? 0) > 0}
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
                 isCollapsed={isCollapsed(node.id)}
                 isBranchingNode={branchingNodeIds.has(node.id)}
-                onSelect={handleSelectNode}
+                onSelect={selectNode}
                 onToggleCollapse={toggleCollapse}
+                violations={violationsByElement.get(node.id) || []}
+                onOpenQualityTab={() => {
+                  setSidebarTab("quality");
+                  setSidebarOpen(true);
+                }}
               />
             ))}
           </FlowCanvas>

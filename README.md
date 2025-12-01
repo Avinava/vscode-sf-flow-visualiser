@@ -47,6 +47,7 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 
 - 🎨 **Interactive Flow Diagram** - Beautiful, modern visualization of your Salesforce Flows with color-coded elements
 - 🔍 **Detailed Node Inspector** - Click any node to view its properties, connections, and raw XML in a convenient sidebar
+- 🛡️ **Flow Quality Analysis** - Real-time quality analysis powered by [lightning-flow-scanner](https://github.com/Flow-Scanner/lightning-flow-scanner) to detect best practice violations
 - 🔄 **Smart Auto-Layout** - Intelligent tree-based layout algorithm that handles complex flows, branches, and merges
 - 🖱️ **Smooth Navigation** - Pan with drag, zoom with scroll wheel, and reset view with one click
 - 📁 **Multiple Access Points** - Open from editor title bar, context menu, explorer, or command palette
@@ -56,6 +57,12 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - 🚀 **Zero Configuration** - Works out of the box with any Salesforce Flow XML file
 - 🎭 **Theme Support** - Light, dark, and auto themes to match your VS Code setup
 - 💾 **Persistent Preferences** - Theme and animation settings are remembered across sessions
+
+### What's New in 1.1.5
+
+- **Sidebar**: New sidebar for viewing node details and properties
+- **Conditions**: Enhanced visualization of decision conditions and outcomes
+- Fixed an issue where branch lines from different decision nodes could appear connected. Now, decision subtrees are visually distinct, ensuring clarity in complex flows.
 
 ### What's New in 1.1.4
 

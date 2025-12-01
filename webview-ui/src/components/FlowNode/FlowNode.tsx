@@ -11,7 +11,7 @@
  */
 
 import React from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import type { FlowNode as FlowNodeType, NodeTypeConfig } from "../../types";
 import { NODE_CONFIG } from "../../constants";
 
@@ -28,6 +28,12 @@ export interface FlowNodeProps {
   isBranchingNode?: boolean;
   onSelect: (node: FlowNodeType) => void;
   onToggleCollapse?: (nodeId: string) => void;
+  violations?: Array<{
+    severity: "error" | "warning" | "note";
+    rule: string;
+    message: string;
+  }>;
+  onOpenQualityTab?: () => void;
 }
 
 // ============================================================================
@@ -70,8 +76,51 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   isBranchingNode = false,
   onSelect,
   onToggleCollapse,
+  violations = [],
+  onOpenQualityTab,
 }) => {
   const config: NodeTypeConfig = NODE_CONFIG[node.type] || NODE_CONFIG.ACTION;
+
+  // Get highest severity violation for badge
+  const highestSeverity = violations.length > 0
+    ? violations.some(v => v.severity === "error")
+      ? "error"
+      : violations.some(v => v.severity === "warning")
+        ? "warning"
+        : "note"
+    : null;
+
+  // Get badge style
+  const getBadgeStyle = () => {
+    switch (highestSeverity) {
+      case "error":
+        return {
+          bg: "bg-red-500/90 hover:bg-red-600",
+          text: "text-white",
+          icon: "text-white",
+        };
+      case "warning":
+        return {
+          bg: "bg-yellow-400 hover:bg-yellow-500",
+          text: "text-slate-900",
+          icon: "text-slate-900",
+        };
+      case "note":
+        return {
+          bg: "bg-blue-500/90 hover:bg-blue-600",
+          text: "text-white",
+          icon: "text-white",
+        };
+      default:
+        return {
+          bg: "",
+          text: "",
+          icon: "",
+        };
+    }
+  };
+
+  const badgeStyle = getBadgeStyle();
 
   // Special rendering for END nodes
   if (node.type === "END") {
@@ -172,10 +221,9 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         <div
           className={`
             rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
-            ${
-              isSelected
-                ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
-                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+            ${isSelected
+              ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
             }
             bg-white dark:bg-slate-800
           `}
@@ -230,10 +278,10 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
               )}
               {node.data.triggerType && (
                 <div className="flex items-baseline">
-                  <span className="text-slate-500 dark:text-slate-400 mr-1">
+                  <span className="text-slate-500 dark:text-slate-400 mr-1 whitespace-nowrap">
                     Optimize for:
                   </span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
                     {getOptimizeForLabel(node.data.triggerType as string)}
                   </span>
                 </div>
@@ -276,17 +324,31 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       {/* Node card */}
       <div
         className={`
-          rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
-          ${
-            isSelected
-              ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
-              : isCollapsed
-                ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
-                : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+          rounded-lg border shadow-sm cursor-pointer overflow-visible transition-all relative
+          ${isSelected
+            ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+            : isCollapsed
+              ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
+              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
           }
           ${isCollapsed ? "bg-amber-50 dark:bg-amber-950/30" : "bg-white dark:bg-slate-800"}
         `}
       >
+        {/* Violation badge - integrated into top-right corner */}
+        {violations.length > 0 && (
+          <div
+            className={`absolute -top-2 -right-2 px-1.5 py-1 rounded-full shadow-md cursor-pointer transition-all z-20 flex items-center gap-1 ${badgeStyle.bg} ${badgeStyle.text} hover:scale-110`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenQualityTab?.();
+            }}
+            title={`${violations.length} quality ${violations.length === 1 ? 'issue' : 'issues'} - Click to view details`}
+          >
+            <ShieldAlert className={`w-3.5 h-3.5 ${badgeStyle.icon}`} />
+            <span className="text-[10px] font-bold">{violations.length}</span>
+          </div>
+        )}
+
         <div className="flex items-stretch">
           {/* Icon - diamond shape for DECISION/WAIT nodes */}
           {node.type === "DECISION" || node.type === "WAIT" ? (

@@ -73,7 +73,7 @@ function getProcessTypeLabel(processType?: string): string {
 }
 
 /**
- * Get human-readable trigger type label
+ * Get human-readable trigger type label (short version for header)
  */
 function getTriggerTypeLabel(
   triggerType?: string,
@@ -82,8 +82,8 @@ function getTriggerTypeLabel(
   if (!triggerType) return "";
 
   const triggers: Record<string, string> = {
-    RecordAfterSave: "After Save",
-    RecordBeforeSave: "Before Save",
+    RecordAfterSave: "After",
+    RecordBeforeSave: "Before",
     RecordBeforeDelete: "Before Delete",
     Scheduled: "Scheduled",
     PlatformEvent: "Platform Event",
@@ -94,13 +94,13 @@ function getTriggerTypeLabel(
   // Add record trigger type info (Create, Update, CreateOrUpdate, Delete)
   if (recordTriggerType) {
     const recordTypes: Record<string, string> = {
-      Create: "record is created",
-      Update: "record is updated",
-      CreateOrUpdate: "record is created or updated",
-      Delete: "record is deleted",
+      Create: "Create",
+      Update: "Update",
+      CreateOrUpdate: "Create/Update",
+      Delete: "Delete",
     };
     const recordLabel = recordTypes[recordTriggerType] || recordTriggerType;
-    return `${triggerLabel} - A ${recordLabel}`;
+    return `${triggerLabel} ${recordLabel}`;
   }
 
   return triggerLabel;
@@ -411,9 +411,23 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
         {/* Left: Flow Info */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-          <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-            {flowName}
-          </h1>
+          <div className="min-w-0">
+            <h1
+              className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
+              title={metadata.description || flowName}
+            >
+              {flowName}
+            </h1>
+            {/* Description - show truncated if present */}
+            {metadata.description && (
+              <p
+                className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[300px]"
+                title={metadata.description}
+              >
+                {metadata.description}
+              </p>
+            )}
+          </div>
           {/* Status Badge */}
           {metadata.status && (
             <span

@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   Workflow,
+  ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "../../context";
 
@@ -33,18 +34,22 @@ export interface CanvasToolbarProps {
   onFitToView: () => void;
   onToggleAutoLayout: () => void;
   onToggleAutoOpen: () => void;
+  scanEnabled: boolean;
+  onToggleScan: () => void;
 }
 
 export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   scale,
   autoLayoutEnabled,
   autoOpenEnabled,
+  scanEnabled,
   onZoomIn,
   onZoomOut,
   onResetView,
   onFitToView,
   onToggleAutoLayout,
   onToggleAutoOpen,
+  onToggleScan,
 }) => {
   const { isDark, toggleTheme, animateFlow, toggleAnimation } = useTheme();
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -83,6 +88,15 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         </button>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button
+          onClick={onToggleScan}
+          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
+            ${scanEnabled ? "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
+          title="Toggle Quality Scan"
+        >
+          <ShieldCheck size={14} className="flex-shrink-0" />
+          <span className="hidden md:inline">Scan</span>
+        </button>
+        <button
           onClick={onToggleAutoLayout}
           className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
             ${autoLayoutEnabled ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
@@ -107,11 +121,10 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button
           onClick={toggleAnimation}
-          className={`p-1.5 rounded-md transition-colors ${
-            animateFlow
-              ? "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
-              : "hover:bg-slate-100 dark:hover:bg-slate-700"
-          }`}
+          className={`p-1.5 rounded-md transition-colors ${animateFlow
+            ? "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+            : "hover:bg-slate-100 dark:hover:bg-slate-700"
+            }`}
           title={
             animateFlow ? "Stop Flow Animation (A)" : "Animate Data Flow (A)"
           }

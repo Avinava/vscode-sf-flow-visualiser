@@ -9,8 +9,15 @@
  * - alcCanvasUtils.js: Element parsing, type detection
  */
 
-import type { FlowNode, FlowEdge, ParsedFlow, FlowMetadata, NodeType } from "../types";
-import { NODE_WIDTH, NODE_HEIGHT } from "../constants";
+import type {
+  FlowNode,
+  FlowEdge,
+  ParsedFlow,
+  FlowMetadata,
+  NodeType,
+  FlowNodeData,
+} from "../types";
+import { NODE_WIDTH, START_NODE_WIDTH, NODE_HEIGHT } from "../constants";
 import { buildFlowRelationships } from "./buildFlowModel";
 
 // ============================================================================
@@ -78,12 +85,105 @@ interface StartNodeResult {
   edges: FlowEdge[];
 }
 
+/**
+ * Parse entry conditions from start element
+ */
+function parseEntryConditions(
+  startEl: Element
+): Array<{ field: string; operator: string; value: string }> {
+  const conditions: Array<{ field: string; operator: string; value: string }> =
+    [];
+  const filterEls = startEl.getElementsByTagName("filters");
+  for (let i = 0; i < filterEls.length; i++) {
+    const filter = filterEls[i];
+    const valueEl = filter.getElementsByTagName("value")[0];
+    let value = "";
+    if (valueEl) {
+      value =
+        getText(valueEl, "stringValue") ||
+        getText(valueEl, "elementReference") ||
+        getText(valueEl, "numberValue") ||
+        getText(valueEl, "booleanValue") ||
+        valueEl.textContent ||
+        "";
+    }
+    conditions.push({
+      field: getText(filter, "field"),
+      operator: getText(filter, "operator"),
+      value,
+    });
+  }
+  return conditions;
+}
+
+/**
+ * Parse scheduled paths from start element
+ */
+function parseScheduledPaths(startEl: Element): Array<{
+  name: string;
+  label: string;
+  pathType: string;
+  timeOffset?: number;
+  timeOffsetUnit?: string;
+}> {
+  const paths: Array<{
+    name: string;
+    label: string;
+    pathType: string;
+    timeOffset?: number;
+    timeOffsetUnit?: string;
+  }> = [];
+  const scheduledPathEls = startEl.getElementsByTagName("scheduledPaths");
+  for (let i = 0; i < scheduledPathEls.length; i++) {
+    const path = scheduledPathEls[i];
+    const pathType = getText(path, "pathType");
+    const pathName = getText(path, "name");
+    let pathLabel = getText(path, "label") || pathName;
+    if (!pathLabel) {
+      if (pathType === "AsyncAfterCommit") {
+        pathLabel = "Run Asynchronously";
+      } else if (pathType === "Scheduled") {
+        pathLabel = "Scheduled Path";
+      } else {
+        pathLabel = `Path ${i + 1}`;
+      }
+    }
+
+    const timeOffsetStr = getText(path, "offsetNumber");
+    const timeOffset = timeOffsetStr ? parseInt(timeOffsetStr, 10) : undefined;
+    const timeOffsetUnit = getText(path, "offsetUnit") || undefined;
+
+    paths.push({
+      name: pathName,
+      label: pathLabel,
+      pathType,
+      timeOffset,
+      timeOffsetUnit,
+    });
+  }
+  return paths;
+}
+
 function parseStartElement(startEl: Element): StartNodeResult {
   const edges: FlowEdge[] = [];
 
   const triggerType = getText(startEl, "triggerType");
   const obj = getText(startEl, "object");
   const recTrigger = getText(startEl, "recordTriggerType");
+
+  // Parse additional entry criteria fields
+  const filterFormula = getText(startEl, "filterFormula");
+  const filterLogic = getText(startEl, "filterLogic");
+  const doesRequireRecordChangedToMeetCriteria = getText(
+    startEl,
+    "doesRequireRecordChangedToMeetCriteria"
+  );
+  const entryConditions = parseEntryConditions(startEl);
+  const scheduledPathsData = parseScheduledPaths(startEl);
+
+  // Parse schedule info for scheduled flows
+  const schedule = getText(startEl, "schedule");
+  const frequency = getText(startEl, "frequency");
 
   // Determine start label based on trigger type
   let startLabel = "Start";
@@ -110,12 +210,24 @@ function parseStartElement(startEl: Element): StartNodeResult {
     label: startLabel,
     x: 0,
     y: 0,
-    width: NODE_WIDTH,
+    width: START_NODE_WIDTH,
     height: startHeight,
     data: {
       object: obj,
       triggerType,
       recordTriggerType: recTrigger,
+      // Entry criteria
+      filterFormula,
+      filterLogic,
+      doesRequireRecordChangedToMeetCriteria:
+        doesRequireRecordChangedToMeetCriteria === "true",
+      entryConditions: entryConditions.length > 0 ? entryConditions : undefined,
+      // Scheduled paths
+      scheduledPaths:
+        scheduledPathsData.length > 0 ? scheduledPathsData : undefined,
+      // Schedule info
+      schedule,
+      frequency,
     },
   };
 
@@ -195,25 +307,272 @@ interface ElementResult {
   edges: FlowEdge[];
 }
 
+/**
+ * Extract assignment items from an assignment element
+ */
+function parseAssignmentItems(
+  el: Element
+): Array<{ field: string; operator: string; value: string }> {
+  const items: Array<{ field: string; operator: string; value: string }> = [];
+  const assignmentItems = el.getElementsByTagName("assignmentItems");
+  for (let i = 0; i < assignmentItems.length; i++) {
+    const item = assignmentItems[i];
+    items.push({
+      field: getText(item, "assignToReference"),
+      operator: getText(item, "operator"),
+      value:
+        getText(item, "value") ||
+        getText(item, "stringValue") ||
+        getText(item, "elementReference") ||
+        "",
+    });
+  }
+  return items;
+}
+
+/**
+ * Extract input assignments from a record element
+ */
+function parseInputAssignments(
+  el: Element
+): Array<{ field: string; value: string }> {
+  const inputs: Array<{ field: string; value: string }> = [];
+  const inputAssignments = el.getElementsByTagName("inputAssignments");
+  for (let i = 0; i < inputAssignments.length; i++) {
+    const item = inputAssignments[i];
+    const valueEl = item.getElementsByTagName("value")[0];
+    let value = "";
+    if (valueEl) {
+      // Try different value types
+      value =
+        getText(valueEl, "stringValue") ||
+        getText(valueEl, "elementReference") ||
+        getText(valueEl, "numberValue") ||
+        getText(valueEl, "booleanValue") ||
+        valueEl.textContent ||
+        "";
+    }
+    inputs.push({
+      field: getText(item, "field"),
+      value,
+    });
+  }
+  return inputs;
+}
+
+/**
+ * Extract filters/conditions from a record lookup
+ */
+function parseFilters(
+  el: Element
+): Array<{ field: string; operator: string; value: string }> {
+  const filters: Array<{ field: string; operator: string; value: string }> = [];
+  const filterEls = el.getElementsByTagName("filters");
+  for (let i = 0; i < filterEls.length; i++) {
+    const filter = filterEls[i];
+    const valueEl = filter.getElementsByTagName("value")[0];
+    let value = "";
+    if (valueEl) {
+      value =
+        getText(valueEl, "stringValue") ||
+        getText(valueEl, "elementReference") ||
+        getText(valueEl, "numberValue") ||
+        valueEl.textContent ||
+        "";
+    }
+    filters.push({
+      field: getText(filter, "field"),
+      operator: getText(filter, "operator"),
+      value,
+    });
+  }
+  return filters;
+}
+
+/**
+ * Extract conditions from a decision rule
+ */
+function parseConditions(
+  ruleEl: Element
+): Array<{ field: string; operator: string; value: string }> {
+  const conditions: Array<{ field: string; operator: string; value: string }> =
+    [];
+  const conditionEls = ruleEl.getElementsByTagName("conditions");
+  for (let i = 0; i < conditionEls.length; i++) {
+    const cond = conditionEls[i];
+    const rightValueEl = cond.getElementsByTagName("rightValue")[0];
+    let value = "";
+    if (rightValueEl) {
+      value =
+        getText(rightValueEl, "stringValue") ||
+        getText(rightValueEl, "elementReference") ||
+        getText(rightValueEl, "numberValue") ||
+        getText(rightValueEl, "booleanValue") ||
+        rightValueEl.textContent ||
+        "";
+    }
+    conditions.push({
+      field: getText(cond, "leftValueReference"),
+      operator: getText(cond, "operator"),
+      value,
+    });
+  }
+  return conditions;
+}
+
+/**
+ * Extract screen fields information
+ */
+function parseScreenFields(
+  el: Element
+): Array<{ name: string; type: string; label: string; required: boolean }> {
+  const fields: Array<{
+    name: string;
+    type: string;
+    label: string;
+    required: boolean;
+  }> = [];
+  const fieldEls = el.getElementsByTagName("fields");
+  for (let i = 0; i < fieldEls.length; i++) {
+    const field = fieldEls[i];
+    fields.push({
+      name: getText(field, "name"),
+      type: getText(field, "fieldType"),
+      label: getText(field, "fieldText") || getText(field, "name"),
+      required: getText(field, "isRequired").toLowerCase() === "true",
+    });
+  }
+  return fields;
+}
+
 function parseFlowElement(el: Element, type: NodeType): ElementResult {
   const edges: FlowEdge[] = [];
 
   const name = getText(el, "name");
   const label = getText(el, "label") || name;
   const obj = getText(el, "object");
+  const description = getText(el, "description");
+
+  // Extract type-specific data
+  const elementData: FlowNodeData = {
+    xmlElement: el.outerHTML,
+    object: obj,
+    description,
+  };
+
+  // Parse assignment items
+  if (type === "ASSIGNMENT") {
+    elementData.assignmentItems = parseAssignmentItems(el);
+  }
+
+  // Parse record operations
+  if (type === "RECORD_CREATE" || type === "RECORD_UPDATE") {
+    elementData.inputAssignments = parseInputAssignments(el);
+    elementData.inputReference = getText(el, "inputReference");
+    elementData.storeOutputAutomatically =
+      getText(el, "storeOutputAutomatically").toLowerCase() === "true";
+  }
+
+  // Parse record lookup
+  if (type === "RECORD_LOOKUP") {
+    elementData.filters = parseFilters(el);
+    elementData.filterLogic = getText(el, "filterLogic");
+    elementData.getFirstRecordOnly =
+      getText(el, "getFirstRecordOnly").toLowerCase() === "true";
+    elementData.storeOutputAutomatically =
+      getText(el, "storeOutputAutomatically").toLowerCase() === "true";
+    elementData.sortField = getText(el, "sortField");
+    elementData.sortOrder = getText(el, "sortOrder");
+  }
+
+  // Parse record delete
+  if (type === "RECORD_DELETE") {
+    elementData.filters = parseFilters(el);
+    elementData.filterLogic = getText(el, "filterLogic");
+    elementData.inputReference = getText(el, "inputReference");
+  }
+
+  // Parse loop
+  if (type === "LOOP") {
+    elementData.collectionReference = getText(el, "collectionReference");
+    elementData.iterationOrder = getText(el, "iterationOrder");
+    elementData.assignNextValueToReference = getText(
+      el,
+      "assignNextValueToReference"
+    );
+  }
+
+  // Parse screen fields
+  if (type === "SCREEN") {
+    elementData.screenFields = parseScreenFields(el);
+    elementData.allowBack = getText(el, "allowBack").toLowerCase() === "true";
+    elementData.allowFinish =
+      getText(el, "allowFinish").toLowerCase() === "true";
+    elementData.allowPause = getText(el, "allowPause").toLowerCase() === "true";
+    elementData.showHeader = getText(el, "showHeader").toLowerCase() === "true";
+    elementData.showFooter = getText(el, "showFooter").toLowerCase() === "true";
+  }
+
+  // Parse subflow
+  if (type === "SUBFLOW") {
+    elementData.flowName = getText(el, "flowName");
+    elementData.inputAssignments = parseInputAssignments(el);
+  }
+
+  // Parse action call - detect specific action types
+  if (type === "ACTION") {
+    elementData.actionName = getText(el, "actionName");
+    elementData.actionType = getText(el, "actionType");
+    elementData.inputAssignments = parseInputAssignments(el);
+  }
+
+  // Refine node type based on actionType for ACTION elements
+  let finalType = type;
+  if (type === "ACTION" && elementData.actionType) {
+    const actionTypeMap: Record<string, NodeType> = {
+      emailAlert: "EMAIL_ALERT",
+      quickAction: "QUICK_ACTION",
+      apex: "APEX_CALL",
+      submit: "SUBMIT_FOR_APPROVAL",
+      externalService: "EXTERNAL_SERVICE",
+      chatterPost: "POST_TO_CHATTER",
+      sendEmail: "SEND_EMAIL",
+    };
+    finalType = actionTypeMap[elementData.actionType as string] || type;
+  }
+
+  // Parse decision rules (for data display, not connectors)
+  if (type === "DECISION") {
+    const rulesEls = el.getElementsByTagName("rules");
+    const rulesData: Array<{
+      name: string;
+      label: string;
+      conditionLogic: string;
+      conditions: Array<{ field: string; operator: string; value: string }>;
+    }> = [];
+    for (let j = 0; j < rulesEls.length; j++) {
+      const rule = rulesEls[j];
+      rulesData.push({
+        name: getText(rule, "name"),
+        label: getText(rule, "label") || getText(rule, "name"),
+        conditionLogic: getText(rule, "conditionLogic"),
+        conditions: parseConditions(rule),
+      });
+    }
+    elementData.rules = rulesData;
+    elementData.defaultConnectorLabel =
+      getText(el, "defaultConnectorLabel") || "Default Outcome";
+  }
 
   const node: FlowNode = {
     id: name,
-    type,
+    type: finalType,
     label,
     x: 0,
     y: 0,
     width: NODE_WIDTH,
     height: NODE_HEIGHT,
-    data: {
-      xmlElement: el.outerHTML,
-      object: obj,
-    },
+    data: elementData,
   };
 
   // Parse standard connector
@@ -377,25 +736,59 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
 // Based on Salesforce's handling of terminal nodes
 // ============================================================================
 
-function generateEndNodes(nodes: FlowNode[], edges: FlowEdge[]): { nodes: FlowNode[]; edges: FlowEdge[] } {
+function generateEndNodes(
+  nodes: FlowNode[],
+  edges: FlowEdge[]
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
   const resultNodes = [...nodes];
   const resultEdges = [...edges];
 
-  // Find nodes with outgoing connections
-  const nodesWithOutgoing = new Set(edges.map((e) => e.source));
-
-  // Track nodes reached via fault connectors
+  // Track nodes that have at least one non-fault outgoing connector
+  const nodesWithRegularOutgoing = new Set<string>();
+  // Track nodes reached via (or continuing along) fault paths
   const faultReachedNodes = new Set<string>();
-  edges.forEach((e) => {
-    if (e.type === "fault") {
-      faultReachedNodes.add(e.target);
+  const incomingEdges = new Map<string, FlowEdge[]>();
+
+  edges.forEach((edge) => {
+    if (!incomingEdges.has(edge.target)) {
+      incomingEdges.set(edge.target, []);
+    }
+    incomingEdges.get(edge.target)!.push(edge);
+
+    if (edge.type !== "fault" && edge.type !== "fault-end") {
+      nodesWithRegularOutgoing.add(edge.source);
+    }
+
+    if (edge.type === "fault" || edge.type === "fault-end") {
+      faultReachedNodes.add(edge.target);
+    }
+  });
+
+  // Nodes whose only incoming connectors are faults should inherit fault styling
+  // But nodes with ANY normal incoming connector are part of the main flow
+  incomingEdges.forEach((incoming, nodeId) => {
+    const hasNormalIncoming = incoming.some(
+      (edge) => edge.type !== "fault" && edge.type !== "fault-end"
+    );
+    if (hasNormalIncoming) {
+      // This node is reachable via normal path, remove from fault set
+      faultReachedNodes.delete(nodeId);
+    } else if (
+      incoming.length > 0 &&
+      incoming.every(
+        (edge) => edge.type === "fault" || edge.type === "fault-end"
+      )
+    ) {
+      faultReachedNodes.add(nodeId);
     }
   });
 
   let endNodeCount = 0;
 
   // Handle START node with immediate end (when there are scheduled paths but no immediate connector)
-  const startImmediateEndEdge = edges.find((e) => e.target === "START_IMMEDIATE_END");
+  const startImmediateEndEdge = edges.find(
+    (e) => e.target === "START_IMMEDIATE_END"
+  );
   if (startImmediateEndEdge) {
     resultNodes.push({
       id: "START_IMMEDIATE_END",
@@ -414,7 +807,8 @@ function generateEndNodes(nodes: FlowNode[], edges: FlowEdge[]): { nodes: FlowNo
   nodes.forEach((node) => {
     if (node.type === "DECISION" && node.data.hasImplicitDefaultEnd) {
       const endNodeId = `END_NODE_${endNodeCount++}`;
-      const defLabel = (node.data.defaultConnectorLabel as string) || "Default Outcome";
+      const defLabel =
+        (node.data.defaultConnectorLabel as string) || "Default Outcome";
 
       resultNodes.push({
         id: endNodeId,
@@ -438,7 +832,9 @@ function generateEndNodes(nodes: FlowNode[], edges: FlowEdge[]): { nodes: FlowNo
   });
 
   // Find terminal nodes (no outgoing edges, not START)
-  const terminalNodes = nodes.filter((node) => !nodesWithOutgoing.has(node.id) && node.type !== "START");
+  const terminalNodes = nodes.filter(
+    (node) => !nodesWithRegularOutgoing.has(node.id) && node.type !== "START"
+  );
 
   terminalNodes.forEach((node) => {
     const endNodeId = `END_NODE_${endNodeCount++}`;
@@ -547,6 +943,10 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   // Parse start element
   if (startEl) {
     const { node, edges: startEdges } = parseStartElement(startEl);
+    // Add flow description to START node for display in sidebar
+    if (metadata.description) {
+      node.data.description = metadata.description;
+    }
     nodes.push(node);
     edges.push(...startEdges);
   }
@@ -563,7 +963,10 @@ export function parseFlowXML(xmlText: string): ParsedFlow {
   }
 
   // Generate END nodes for terminal paths
-  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(nodes, edges);
+  const { nodes: finalNodes, edges: finalEdges } = generateEndNodes(
+    nodes,
+    edges
+  );
 
   const normalizedNodes = buildFlowRelationships(finalNodes, finalEdges);
 

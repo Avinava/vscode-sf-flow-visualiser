@@ -128,9 +128,10 @@ export function useFlowParser(
           nodes: autoLayout(nodes, edges),
           edges,
           metadata,
+          xmlContent: xmlInput, // Store for quality analysis
         });
       } else {
-        setParsedData({ nodes, edges, metadata });
+        setParsedData({ nodes, edges, metadata, xmlContent: xmlInput });
       }
 
       setError(null);

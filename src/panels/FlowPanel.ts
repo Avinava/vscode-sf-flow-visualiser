@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { getUri } from "../utilities/getUri";
 import { getNonce } from "../utilities/getNonce";
 import * as path from "path";
+import { analyzeFlowXML } from "../flowScannerService";
 
 /**
  * FlowPanel class manages the webview panel for flow visualization
@@ -78,10 +79,16 @@ export class FlowPanel {
                 FlowPanel._context.globalState.get<string>("themeMode");
               const animateFlow =
                 FlowPanel._context.globalState.get<boolean>("animateFlow");
-              if (themeMode !== undefined || animateFlow !== undefined) {
+              const scanEnabled =
+                FlowPanel._context.globalState.get<boolean>("scanEnabled");
+              if (
+                themeMode !== undefined ||
+                animateFlow !== undefined ||
+                scanEnabled !== undefined
+              ) {
                 this._panel.webview.postMessage({
                   command: "restoreState",
-                  payload: { themeMode, animateFlow },
+                  payload: { themeMode, animateFlow, scanEnabled },
                 });
               }
             }
@@ -106,6 +113,27 @@ export class FlowPanel {
                 (message.payload as { enabled: boolean }).enabled
               );
               FlowPanel.updateAutoOpenSetting(enabled);
+            }
+            return;
+          case "analyzeFlow":
+            // Handle flow quality analysis request
+            if (message.payload && typeof message.payload === "string") {
+              const flowXml = message.payload;
+              const requestId = message.requestId; // Pass through request ID for matching
+              console.log("[FlowPanel] Received analyzeFlow request", {
+                requestId,
+              });
+              analyzeFlowXML(flowXml).then((result) => {
+                console.log("[FlowPanel] Sending analysis result", {
+                  requestId,
+                  violationCount: result.violations.length,
+                });
+                this._panel.webview.postMessage({
+                  command: "flowAnalysisResult",
+                  payload: result,
+                  requestId, // Include request ID in response
+                });
+              });
             }
             return;
         }
@@ -248,7 +276,7 @@ export class FlowPanel {
     const config = vscode.workspace.getConfiguration("sf-flow-visualizer");
     const target =
       vscode.workspace.workspaceFolders &&
-      vscode.workspace.workspaceFolders.length > 0
+        vscode.workspace.workspaceFolders.length > 0
         ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
 

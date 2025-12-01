@@ -19,3 +19,8 @@ eslint.config.js
 **/*.ts
 !out/**
 references/
+docs/**
+.DS_Store
+assets/screenshot.png
+.github/**
+assets/icon-full.png
