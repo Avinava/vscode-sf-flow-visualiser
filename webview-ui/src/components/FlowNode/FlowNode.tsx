@@ -101,9 +101,9 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         };
       case "warning":
         return {
-          bg: "bg-amber-500/90 hover:bg-amber-600",
-          text: "text-white",
-          icon: "text-white",
+          bg: "bg-yellow-400 hover:bg-yellow-500",
+          text: "text-slate-900",
+          icon: "text-slate-900",
         };
       case "note":
         return {

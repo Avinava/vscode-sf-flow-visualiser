@@ -45,7 +45,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         style={{ width: isOpen ? 320 : 0 }}
       >
         {/* Stats */}
-        <FlowStats nodeCount={nodes.length} edgeCount={edges.length} />
+        <FlowStats
+          nodeCount={nodes.length}
+          edgeCount={edges.length}
+          onClose={onToggle}
+        />
 
         {/* Tab Navigation */}
         {qualityMetrics && (

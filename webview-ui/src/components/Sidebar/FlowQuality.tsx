@@ -80,11 +80,11 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
             case "warning":
                 return {
                     icon: AlertTriangle,
-                    color: "text-amber-600 dark:text-amber-400",
-                    bg: "bg-amber-50 dark:bg-amber-900/20",
-                    border: "border-amber-200 dark:border-amber-800",
+                    color: "text-yellow-600 dark:text-yellow-400",
+                    bg: "bg-yellow-50 dark:bg-yellow-900/20",
+                    border: "border-yellow-200 dark:border-yellow-800",
                     badge:
-                        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                        "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
                 };
             case "note":
             default:
@@ -159,7 +159,7 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
                         </div>
                     )}
                     {violationsBySeverity.warning > 0 && (
-                        <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded text-xs text-amber-700 dark:text-amber-400">
+                        <div className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 rounded text-xs text-yellow-700 dark:text-yellow-400">
                             <AlertTriangle className="w-3.5 h-3.5" />
                             <span className="font-semibold">{violationsBySeverity.warning}</span>
                         </div>
@@ -199,7 +199,7 @@ export const FlowQuality: React.FC<FlowQualityProps> = ({ metrics }) => {
                     <button
                         onClick={() => setActiveFilter("warning")}
                         className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${activeFilter === "warning"
-                            ? "text-amber-600 dark:text-amber-400 border-b-2 border-amber-600 dark:border-amber-400"
+                            ? "text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-600 dark:border-yellow-400"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                             }`}
                     >
