@@ -113,7 +113,7 @@ export const COMPLEXITY_INFO = {
   whyItMatters:
     "Lower scores mean easier testing and maintenance. Each independent path requires its own test case for full coverage.",
   salesforceFactors: [
-    { type: "Decision", impact: "+1 per additional outcome" },
+    { type: "Decision", impact: "+1 per outcome" },
     { type: "Loop", impact: "+1 for the loop back edge" },
     { type: "Wait", impact: "+1 per scheduled path" },
     { type: "Fault Handler", impact: "+1 per fault path" },
@@ -333,8 +333,10 @@ export function calculateComplexity(
     switch (node.type) {
       case "DECISION": {
         const outcomes = countOutgoingBranches(node.id, edges);
-        if (outcomes > 1) {
-          breakdown.decisions += outcomes - 1;
+        if (outcomes > 0) {
+          // Flow Scanner logic: rules.length + 1 (which equals outcomes)
+          // Standard logic was outcomes - 1
+          breakdown.decisions += outcomes;
         }
         break;
       }
