@@ -327,6 +327,7 @@ export interface ParsedFlow {
   nodes: FlowNode[];
   edges: FlowEdge[];
   metadata: FlowMetadata;
+  xmlContent?: string; // Full flow XML content for quality analysis
 }
 
 // ============================================================================

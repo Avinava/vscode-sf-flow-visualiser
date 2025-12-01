@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { getUri } from "../utilities/getUri";
 import { getNonce } from "../utilities/getNonce";
 import * as path from "path";
+import { analyzeFlowXML } from "../flowScannerService";
 
 /**
  * FlowPanel class manages the webview panel for flow visualization
@@ -106,6 +107,18 @@ export class FlowPanel {
                 (message.payload as { enabled: boolean }).enabled
               );
               FlowPanel.updateAutoOpenSetting(enabled);
+            }
+            return;
+          case "analyzeFlow":
+            // Handle flow quality analysis request
+            if (message.payload && typeof message.payload === "string") {
+              const flowXml = message.payload;
+              analyzeFlowXML(flowXml).then((result) => {
+                this._panel.webview.postMessage({
+                  command: "flowAnalysisResult",
+                  payload: result,
+                });
+              });
             }
             return;
         }
@@ -248,7 +261,7 @@ export class FlowPanel {
     const config = vscode.workspace.getConfiguration("sf-flow-visualizer");
     const target =
       vscode.workspace.workspaceFolders &&
-      vscode.workspace.workspaceFolders.length > 0
+        vscode.workspace.workspaceFolders.length > 0
         ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
 

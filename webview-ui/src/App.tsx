@@ -24,6 +24,7 @@ import {
 // Import utilities
 import { computeVisibility, getBranchingNodeIds } from "./utils/collapse";
 import { calculateComplexity } from "./utils/complexity";
+import { analyzeFlow, type FlowQualityMetrics } from "./utils/flow-scanner";
 
 // Import types
 import type { BoundingBox } from "./hooks/useCanvasInteraction";
@@ -36,6 +37,7 @@ const AppContent: React.FC = () => {
   // Sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
+  const [qualityMetrics, setQualityMetrics] = useState<FlowQualityMetrics | null>(null);
 
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
@@ -75,6 +77,15 @@ const AppContent: React.FC = () => {
     if (parsedData.nodes.length === 0) return null;
     return calculateComplexity(parsedData.nodes, parsedData.edges);
   }, [parsedData.nodes, parsedData.edges]);
+
+  // Analyze flow quality when XML changes
+  useEffect(() => {
+    if (parsedData.xmlContent) {
+      analyzeFlow(parsedData.xmlContent).then(setQualityMetrics);
+    } else {
+      setQualityMetrics(null);
+    }
+  }, [parsedData.xmlContent]);
 
   // Filter visible nodes and edges
   const visibleNodes = useMemo(() => {
@@ -208,6 +219,7 @@ const AppContent: React.FC = () => {
           selectedNode={selectedNode}
           nodes={parsedData.nodes}
           edges={parsedData.edges}
+          qualityMetrics={qualityMetrics}
         />
 
         {/* CANVAS AREA */}

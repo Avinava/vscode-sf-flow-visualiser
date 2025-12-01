@@ -4,11 +4,13 @@
  * Collapsible sidebar showing flow stats and selected node details.
  */
 
-import React from "react";
-import { ChevronLeftCircle, ChevronRightCircle, Info } from "lucide-react";
+import React, { useState } from "react";
+import { ChevronLeftCircle, ChevronRightCircle, Info, Activity } from "lucide-react";
 import type { FlowNode, FlowEdge } from "../../types";
+import type { FlowQualityMetrics } from "../../utils/flow-scanner";
 import { FlowStats } from "./FlowStats";
 import { NodeDetails } from "./NodeDetails";
+import { FlowQuality } from "./FlowQuality";
 
 export interface SidebarProps {
   isOpen: boolean;
@@ -16,7 +18,10 @@ export interface SidebarProps {
   selectedNode: FlowNode | null;
   nodes: FlowNode[];
   edges: FlowEdge[];
+  qualityMetrics: FlowQualityMetrics | null;
 }
+
+type TabView = "details" | "quality";
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
@@ -24,7 +29,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedNode,
   nodes,
   edges,
+  qualityMetrics,
 }) => {
+  const [activeTab, setActiveTab] = useState<TabView>("details");
+
+  // Show quality tab if there are violations
+  const hasViolations = (qualityMetrics?.totalViolations || 0) > 0;
   return (
     <>
       {/* Sidebar panel */}
@@ -35,17 +45,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Stats */}
         <FlowStats nodeCount={nodes.length} edgeCount={edges.length} />
 
-        {/* Details Panel */}
+        {/* Tab Navigation */}
+        {qualityMetrics && (
+          <div className="flex border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <button
+              onClick={() => setActiveTab("details")}
+              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "details"
+                ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+            >
+              <Info className="w-3.5 h-3.5" />
+              Details
+            </button>
+            <button
+              onClick={() => setActiveTab("quality")}
+              className={`flex-1 px-3 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === "quality"
+                ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Quality
+              {hasViolations && (
+                <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-[10px] font-semibold">
+                  {qualityMetrics.totalViolations}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Content Panel */}
         <div className="flex-1 overflow-y-auto">
-          {selectedNode ? (
-            <NodeDetails node={selectedNode} edges={edges} />
+          {activeTab === "details" ? (
+            selectedNode ? (
+              <NodeDetails node={selectedNode} edges={edges} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 p-6">
+                <Info className="w-12 h-12 mb-3 opacity-20" />
+                <p className="text-center text-xs">
+                  Select a node to view details
+                </p>
+              </div>
+            )
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 p-6">
-              <Info className="w-12 h-12 mb-3 opacity-20" />
-              <p className="text-center text-xs">
-                Select a node to view details
-              </p>
-            </div>
+            <FlowQuality metrics={qualityMetrics} />
           )}
         </div>
       </div>
