@@ -29,6 +29,10 @@ import { analyzeFlow, type FlowQualityMetrics } from "./utils/flow-scanner";
 // Import types
 import type { BoundingBox } from "./hooks/useCanvasInteraction";
 
+import { getVSCodeApi } from "./utils/vscodeApi";
+
+// ... (keep existing imports)
+
 // ============================================================================
 // MAIN APP CONTENT
 // Separated to use theme context
@@ -42,6 +46,45 @@ const AppContent: React.FC = () => {
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
   const [qualityMetrics, setQualityMetrics] =
     useState<FlowQualityMetrics | null>(null);
+
+  // Get VS Code API
+  const vscode = useMemo(() => getVSCodeApi(), []);
+
+  // Scan state - persisted, defaults to true
+  const [scanEnabled, setScanEnabled] = useState<boolean>(() => {
+    const state = vscode?.getState() as { scanEnabled?: boolean } | undefined;
+    return state?.scanEnabled ?? true;
+  });
+
+  const toggleScan = useCallback(() => {
+    setScanEnabled((prev) => {
+      const newValue = !prev;
+      if (vscode) {
+        const currentState = vscode.getState() || {};
+        vscode.setState({ ...currentState, scanEnabled: newValue });
+        vscode.postMessage({
+          command: "saveState",
+          payload: { key: "scanEnabled", value: newValue },
+        });
+      }
+      return newValue;
+    });
+  }, [vscode]);
+
+  // Listen for state restoration from extension host
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const { command, payload } = event.data;
+      if (command === "restoreState" && payload) {
+        if (payload.scanEnabled !== undefined) {
+          setScanEnabled(payload.scanEnabled);
+        }
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   // Theme context
   const { toggleTheme, isDark, toggleAnimation } = useTheme();
@@ -82,14 +125,24 @@ const AppContent: React.FC = () => {
     return calculateComplexity(parsedData.nodes, parsedData.edges);
   }, [parsedData.nodes, parsedData.edges]);
 
-  // Analyze flow quality when XML changes
+  // Analyze flow quality when XML changes or scan is toggled
   useEffect(() => {
-    if (parsedData.xmlContent) {
-      analyzeFlow(parsedData.xmlContent).then(setQualityMetrics);
+    let isMounted = true;
+
+    if (parsedData.xmlContent && scanEnabled) {
+      analyzeFlow(parsedData.xmlContent).then((metrics) => {
+        if (isMounted) {
+          setQualityMetrics(metrics);
+        }
+      });
     } else {
       setQualityMetrics(null);
     }
-  }, [parsedData.xmlContent]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [parsedData.xmlContent, scanEnabled]);
 
   // Create mapping of violations by element name for node badges
   const violationsByElement = useMemo(() => {
@@ -253,12 +306,14 @@ const AppContent: React.FC = () => {
             scale={state.scale}
             autoLayoutEnabled={autoLayoutEnabled}
             autoOpenEnabled={autoOpenViewerEnabled}
+            scanEnabled={scanEnabled}
             onZoomIn={zoomIn}
             onZoomOut={zoomOut}
             onResetView={resetView}
             onFitToView={fitToView}
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
             onToggleAutoOpen={handleToggleAutoOpenPreference}
+            onToggleScan={toggleScan}
           />
 
           {/* Canvas */}

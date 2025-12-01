@@ -79,10 +79,16 @@ export class FlowPanel {
                 FlowPanel._context.globalState.get<string>("themeMode");
               const animateFlow =
                 FlowPanel._context.globalState.get<boolean>("animateFlow");
-              if (themeMode !== undefined || animateFlow !== undefined) {
+              const scanEnabled =
+                FlowPanel._context.globalState.get<boolean>("scanEnabled");
+              if (
+                themeMode !== undefined ||
+                animateFlow !== undefined ||
+                scanEnabled !== undefined
+              ) {
                 this._panel.webview.postMessage({
                   command: "restoreState",
-                  payload: { themeMode, animateFlow },
+                  payload: { themeMode, animateFlow, scanEnabled },
                 });
               }
             }
@@ -270,7 +276,7 @@ export class FlowPanel {
     const config = vscode.workspace.getConfiguration("sf-flow-visualizer");
     const target =
       vscode.workspace.workspaceFolders &&
-      vscode.workspace.workspaceFolders.length > 0
+        vscode.workspace.workspaceFolders.length > 0
         ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
 
