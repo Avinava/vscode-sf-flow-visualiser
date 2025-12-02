@@ -501,43 +501,54 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
       <div className="flex items-center justify-between gap-4">
         {/* Left: Flow Info */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-          <div className="min-w-0">
-            <h1
-              className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
-              title={metadata.description || flowName}
-            >
-              {flowName}
-            </h1>
-            {/* Description - show truncated if present */}
-            {metadata.description && (
-              <p
-                className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[300px]"
-                title={metadata.description}
-              >
-                {metadata.description}
-              </p>
-            )}
+          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
           </div>
-          {/* Status Badge */}
-          {metadata.status && (
-            <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${statusStyle.bg} ${statusStyle.text}`}
-            >
-              <StatusIcon className="w-2.5 h-2.5" />
-              {metadata.status}
-            </span>
-          )}
-          {/* Process Type & API Version */}
-          <span className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline-flex items-center gap-1">
-            <Code className="w-3 h-3" />
-            {processTypeLabel}
-            {metadata.apiVersion && (
-              <span className="text-slate-300 dark:text-slate-600 ml-1">
-                v{metadata.apiVersion}
+          <div className="min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-2">
+              <h1
+                className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-none"
+                title={flowName}
+              >
+                {flowName}
+              </h1>
+              {/* Status Badge */}
+              {metadata.status && (
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium leading-none ${statusStyle.bg} ${statusStyle.text}`}
+                >
+                  <StatusIcon className="w-2.5 h-2.5" />
+                  {metadata.status}
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-none">
+              <span className="flex items-center gap-1">
+                <Code className="w-3 h-3" />
+                {processTypeLabel}
               </span>
-            )}
-          </span>
+              
+              {metadata.apiVersion && (
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <span>v{metadata.apiVersion}</span>
+                </>
+              )}
+
+              {metadata.description && (
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <span 
+                    className="truncate max-w-[200px] xl:max-w-[400px]" 
+                    title={metadata.description}
+                  >
+                    {metadata.description}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Center/Right: Quality Status with clickable popover */}
@@ -551,20 +562,22 @@ export const FlowHeader: React.FC<FlowHeaderProps> = ({
 
         {/* Right: Trigger Info */}
         {(metadata.object || triggerLabel) && (
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">
+          <div className="flex flex-col items-end justify-center">
             {metadata.object && (
-              <span className="inline-flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <Database className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                <span className="font-medium text-slate-600 dark:text-slate-300">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                   {metadata.object}
                 </span>
-              </span>
+              </div>
             )}
             {triggerLabel && (
-              <span className="inline-flex items-center gap-1 hidden md:inline-flex">
-                <Zap className="w-3 h-3" />
-                {triggerLabel}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500" />
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  {triggerLabel}
+                </span>
+              </div>
             )}
           </div>
         )}
