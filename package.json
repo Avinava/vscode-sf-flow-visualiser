@@ -119,6 +119,7 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
-    "@flow-scanner/lightning-flow-scanner-core": "^6.6.1"
+    "@flow-scanner/lightning-flow-scanner-core": "^6.6.1",
+    "html-to-image": "^1.11.13"
   }
 }

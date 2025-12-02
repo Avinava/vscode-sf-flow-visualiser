@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
@@ -24,10 +24,13 @@ import {
 // Import utilities
 import { computeVisibility, getBranchingNodeIds } from "./utils/collapse";
 import { calculateComplexity } from "./utils/complexity";
-import { analyzeFlow, type FlowQualityMetrics } from "./utils/flow-scanner";
+import {
+  FlowNode,
+} from "./types";
+import { analyzeFlow, FlowQualityMetrics, FlowViolation } from "./utils/flow-scanner";
 
 // Import types
-import type { BoundingBox } from "./hooks/useCanvasInteraction";
+import { BoundingBox } from "./hooks/useCanvasInteraction";
 
 import { getVSCodeApi } from "./utils/vscodeApi";
 
@@ -47,6 +50,9 @@ const AppContent: React.FC = () => {
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
   const [qualityMetrics, setQualityMetrics] =
     useState<FlowQualityMetrics | null>(null);
+  
+  // Track when a new flow is loaded to trigger auto-center
+  const shouldAutoCenter = useRef(false);
 
   // Get VS Code API
   const vscode = useMemo(() => getVSCodeApi(), []);
@@ -166,7 +172,7 @@ const AppContent: React.FC = () => {
         message: string;
       }>
     >();
-    qualityMetrics.violations.forEach((violation) => {
+    qualityMetrics.violations.forEach((violation: FlowViolation) => {
       if (violation.elementName) {
         if (!map.has(violation.elementName)) {
           map.set(violation.elementName, []);
@@ -212,6 +218,11 @@ const AppContent: React.FC = () => {
     };
   }, [visibleNodes]);
 
+  // Get Start Node for centering
+  const getStartNode = useCallback((): FlowNode | null => {
+    return visibleNodes.find(n => n.type === 'START') || null;
+  }, [visibleNodes]);
+
   // Canvas interaction hook with theme toggle callback
   const {
     state,
@@ -226,6 +237,7 @@ const AppContent: React.FC = () => {
   } = useCanvasInteraction({
     onToggleTheme: toggleTheme,
     onToggleAnimation: toggleAnimation,
+    startNodeGetter: getStartNode,
   });
 
   // Set up node bounds getter when nodes change
@@ -251,16 +263,29 @@ const AppContent: React.FC = () => {
     [clearSelection, selectEdge]
   );
 
-  // Handle new flow from VS Code - reset canvas state
+  // Handle new flow from VS Code - mark for auto-center
   const handleLoadXml = useCallback(
     (xml: string, newFileName?: string) => {
       loadFlow(xml, newFileName);
       clearSelection();
       clearEdgeSelection();
-      resetView();
+      // Mark that we should auto-center when nodes are loaded
+      shouldAutoCenter.current = true;
     },
-    [loadFlow, clearSelection, clearEdgeSelection, resetView]
+    [loadFlow, clearSelection, clearEdgeSelection]
   );
+
+  // Auto-center flow when nodes are first loaded (same as home button)
+  useEffect(() => {
+    if (shouldAutoCenter.current && visibleNodes.length > 0) {
+      // Debug: Check if nodes have dimensions
+      console.log('Auto-center triggered. Nodes:', visibleNodes.map((n: any) => ({ id: n.id, w: n.width, h: n.height, x: n.position?.x, y: n.position?.y })));
+      
+      // Use the same function as home button for consistent behavior
+      resetView();
+      shouldAutoCenter.current = false;
+    }
+  }, [visibleNodes, resetView]);
 
   // VS Code messaging hook - must be last to use other callbacks
   const { postMessage } = useVSCodeMessaging({
