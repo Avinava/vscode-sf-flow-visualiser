@@ -278,9 +278,6 @@ const AppContent: React.FC = () => {
   // Auto-center flow when nodes are first loaded (same as home button)
   useEffect(() => {
     if (shouldAutoCenter.current && visibleNodes.length > 0) {
-      // Debug: Check if nodes have dimensions
-      console.log('Auto-center triggered. Nodes:', visibleNodes.map((n: any) => ({ id: n.id, w: n.width, h: n.height, x: n.position?.x, y: n.position?.y })));
-      
       // Use the same function as home button for consistent behavior
       resetView();
       shouldAutoCenter.current = false;

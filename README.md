@@ -47,7 +47,11 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 
 - 🎨 **Interactive Flow Diagram** - Beautiful, modern visualization of your Salesforce Flows with color-coded elements
 - 🔍 **Detailed Node Inspector** - Click any node to view its properties, connections, and raw XML in a convenient sidebar
-- 🛡️ **Flow Quality Analysis** - Real-time quality analysis powered by [lightning-flow-scanner](https://github.com/Flow-Scanner/lightning-flow-scanner) to detect best practice violations
+- 🛡️ **Flow Quality Analysis** - **Interactive Diagram**: Pan, zoom, and auto-layout capabilities.
+- **Smart Centering**:
+  - **Initial Load / Home (0)**: Centers the **Start Node** at 90% scale, ensuring the flow's entry point is always in focus.
+  - **Fit to View (F)**: Fits the entire flow content within the screen.
+- **Flow Analysis**: Built-in quality scanner (based on lightning-flow-scanner) to detect best practice violations.
 - 🔄 **Smart Auto-Layout** - Intelligent tree-based layout algorithm that handles complex flows, branches, and merges
 - 🖱️ **Smooth Navigation** - Pan with drag, zoom with scroll wheel, and reset view with one click
 - 📁 **Multiple Access Points** - Open from editor title bar, context menu, explorer, or command palette

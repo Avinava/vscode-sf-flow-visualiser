@@ -218,8 +218,6 @@ export function useCanvasInteraction(
         const panX = viewportWidth / 2 - centerX * fixedScale;
         const panY = padding - startNode.y * fixedScale + 30; // Top position with padding
 
-        console.log('centerView: Centering on Start Node', { startNode, panX, panY });
-
         setScaleState(fixedScale);
         setPanState({ x: panX, y: panY });
         return;
@@ -256,8 +254,6 @@ export function useCanvasInteraction(
     // Calculate pan needed to center horizontally and position from top
     const panX = viewportWidth / 2 - centerX * fixedScale;
     const panY = padding - bounds.minY * fixedScale + 30; // Top position with padding
-
-    console.log('centerView: Centering on Bounding Box', { bounds, panX, panY });
 
     setScaleState(fixedScale);
     setPanState({ x: panX, y: panY });
