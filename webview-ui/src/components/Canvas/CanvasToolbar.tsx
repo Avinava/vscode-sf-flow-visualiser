@@ -24,6 +24,7 @@ import {
   Download,
 } from "lucide-react";
 import { useTheme } from "../../context";
+import { Tooltip } from "../Tooltip";
 
 export interface CanvasToolbarProps {
   scale: number;
@@ -62,113 +63,141 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
     <>
       {/* Main toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 px-2 py-1 flex items-center gap-1">
-        <button
-          onClick={onZoomIn}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title="Zoom In (+)"
-        >
-          <ZoomIn size={16} className="text-slate-600 dark:text-slate-300" />
-        </button>
-        <button
-          onClick={onZoomOut}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title="Zoom Out (-)"
-        >
-          <ZoomOut size={16} className="text-slate-600 dark:text-slate-300" />
-        </button>
-        <button
-          onClick={onResetView}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title="Reset View (0)"
-        >
-          <Home size={16} className="text-slate-600 dark:text-slate-300" />
-        </button>
-        <button
-          onClick={onFitToView}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title="Fit to View (F)"
-        >
-          <Maximize size={16} className="text-slate-600 dark:text-slate-300" />
-        </button>
+        <Tooltip content="Zoom In (+)">
+          <button
+            onClick={onZoomIn}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            <ZoomIn size={16} className="text-slate-600 dark:text-slate-300" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Zoom Out (-)">
+          <button
+            onClick={onZoomOut}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            <ZoomOut size={16} className="text-slate-600 dark:text-slate-300" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Reset View (0)">
+          <button
+            onClick={onResetView}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            <Home size={16} className="text-slate-600 dark:text-slate-300" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Fit to View (F)">
+          <button
+            onClick={onFitToView}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            <Maximize size={16} className="text-slate-600 dark:text-slate-300" />
+          </button>
+        </Tooltip>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
-        <button
-          onClick={onExportImage}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title="Export as Image"
-        >
-          <Download size={16} className="text-slate-600 dark:text-slate-300" />
-        </button>
+        <Tooltip content="Export as Image">
+          <button
+            onClick={onExportImage}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            <Download size={16} className="text-slate-600 dark:text-slate-300" />
+          </button>
+        </Tooltip>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
-        <button
-          onClick={onToggleScan}
-          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
-            ${scanEnabled ? "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
-          title="Toggle Quality Scan"
-        >
-          <ShieldCheck size={14} className="flex-shrink-0" />
-          <span className="hidden md:inline">Scan</span>
-        </button>
-        <button
-          onClick={onToggleAutoLayout}
-          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
-            ${autoLayoutEnabled ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
-          title="Auto-Layout"
-        >
-          <Layout size={14} className="flex-shrink-0" />
-          <span className="hidden md:inline">Auto-Layout</span>
-        </button>
-        <button
-          onClick={onToggleAutoOpen}
-          className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
-            ${autoOpenEnabled ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"}`}
-          title="Auto-Open Flow Viewer"
-        >
-          {autoOpenEnabled ? (
-            <Eye size={14} className="flex-shrink-0" />
-          ) : (
-            <EyeOff size={14} className="flex-shrink-0" />
-          )}
-          <span className="hidden md:inline">Auto-Open</span>
-        </button>
-        <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
-        <button
-          onClick={toggleAnimation}
-          className={`p-1.5 rounded-md transition-colors ${animateFlow
-            ? "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
-            : "hover:bg-slate-100 dark:hover:bg-slate-700"
+        <Tooltip content="Toggle Quality Scan">
+          <button
+            onClick={onToggleScan}
+            className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
+            ${
+              scanEnabled
+                ? "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
             }`}
-          title={
+          >
+            <ShieldCheck size={14} className="flex-shrink-0" />
+            <span className="hidden md:inline">Scan</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Auto-Layout">
+          <button
+            onClick={onToggleAutoLayout}
+            className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
+            ${
+              autoLayoutEnabled
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+            }`}
+          >
+            <Layout size={14} className="flex-shrink-0" />
+            <span className="hidden md:inline">Auto-Layout</span>
+          </button>
+        </Tooltip>
+        <Tooltip content="Auto-Open Flow Viewer">
+          <button
+            onClick={onToggleAutoOpen}
+            className={`px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium transition-colors whitespace-nowrap
+            ${
+              autoOpenEnabled
+                ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                : "hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+            }`}
+          >
+            {autoOpenEnabled ? (
+              <Eye size={14} className="flex-shrink-0" />
+            ) : (
+              <EyeOff size={14} className="flex-shrink-0" />
+            )}
+            <span className="hidden md:inline">Auto-Open</span>
+          </button>
+        </Tooltip>
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
+        <Tooltip
+          content={
             animateFlow ? "Stop Flow Animation (A)" : "Animate Data Flow (A)"
           }
         >
-          {animateFlow ? (
-            <Pause size={16} className="text-green-600 dark:text-green-400" />
-          ) : (
-            <Play size={16} className="text-slate-600 dark:text-slate-300" />
-          )}
-        </button>
-        <button
-          onClick={toggleTheme}
-          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-          title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          {isDark ? (
-            <Sun size={16} className="text-amber-500" />
-          ) : (
-            <Moon size={16} className="text-slate-600" />
-          )}
-        </button>
-        <div className="relative">
           <button
-            onClick={() => setShowShortcuts(!showShortcuts)}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-            title="Keyboard Shortcuts"
+            onClick={toggleAnimation}
+            className={`p-1.5 rounded-md transition-colors ${
+              animateFlow
+                ? "bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                : "hover:bg-slate-100 dark:hover:bg-slate-700"
+            }`}
           >
-            <Keyboard
-              size={16}
-              className="text-slate-600 dark:text-slate-300"
-            />
+            {animateFlow ? (
+              <Pause size={16} className="text-green-600 dark:text-green-400" />
+            ) : (
+              <Play size={16} className="text-slate-600 dark:text-slate-300" />
+            )}
           </button>
+        </Tooltip>
+        <Tooltip
+          content={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          >
+            {isDark ? (
+              <Sun size={16} className="text-amber-500" />
+            ) : (
+              <Moon size={16} className="text-slate-600" />
+            )}
+          </button>
+        </Tooltip>
+        <div className="relative">
+          <Tooltip content="Keyboard Shortcuts">
+            <button
+              onClick={() => setShowShortcuts(!showShortcuts)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+            >
+              <Keyboard
+                size={16}
+                className="text-slate-600 dark:text-slate-300"
+              />
+            </button>
+          </Tooltip>
           {/* Shortcuts dropdown */}
           {showShortcuts && (
             <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-3 text-xs">

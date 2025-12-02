@@ -362,6 +362,18 @@ const AppContent: React.FC = () => {
 
 
 
+  // Handle node selection and open sidebar
+  const handleNodeSelect = useCallback(
+    (node: FlowNode | null) => {
+      selectNode(node);
+      if (node) {
+        setSidebarOpen(true);
+        setSidebarTab("details");
+      }
+    },
+    [selectNode]
+  );
+
   return (
     <div
       className={`flex flex-col h-screen w-full overflow-hidden font-sans text-sm transition-colors duration-200
@@ -433,7 +445,7 @@ const AppContent: React.FC = () => {
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
                 isCollapsed={isCollapsed(node.id)}
                 isBranchingNode={branchingNodeIds.has(node.id)}
-                onSelect={selectNode}
+                onSelect={handleNodeSelect}
                 onToggleCollapse={toggleCollapse}
                 violations={violationsByElement.get(node.id) || []}
                 onOpenQualityTab={() => {
