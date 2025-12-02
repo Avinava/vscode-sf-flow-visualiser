@@ -384,6 +384,11 @@ const AppContent: React.FC = () => {
         metadata={parsedData.metadata}
         fileName={fileName}
         complexity={complexityMetrics}
+        qualityMetrics={qualityMetrics}
+        onOpenQualityTab={() => {
+          setSidebarTab("quality");
+          setSidebarOpen(true);
+        }}
       />
 
       {/* MAIN CONTENT */}
