@@ -3,6 +3,8 @@
  *
  * Renders edges that aren't handled by BranchLines or MergeLines.
  * Includes fault paths, loop-back connectors, and simple linear edges.
+ * 
+ * Based on Salesforce's alcConnector fault path patterns.
  */
 
 import React, { useMemo } from "react";
@@ -15,6 +17,7 @@ import {
 import { ConnectorPathService } from "../../services";
 import { EdgeLabel } from "./EdgeLabel";
 import { calculateBranchLines, BranchLineInfo } from "./BranchLines";
+import type { FaultLaneInfo } from "../../layout";
 
 export interface DirectEdgesProps {
   nodes: FlowNode[];
@@ -24,6 +27,7 @@ export interface DirectEdgesProps {
   animateFlow?: boolean;
   highlightedPath?: Set<string>;
   onEdgeClick?: (edgeId: string) => void;
+  faultLanes?: Map<string, FaultLaneInfo>; // Pre-calculated fault lanes from layout
 }
 
 /**
@@ -297,6 +301,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
   animateFlow,
   highlightedPath,
   onEdgeClick,
+  faultLanes,
 }) => {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const elements: JSX.Element[] = [];
@@ -313,15 +318,56 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     [nodes, edges, branchLines, animateFlow]
   );
 
-  // Group fault edges by source for staggering
-  const faultEdgesBySource = new Map<string, FlowEdge[]>();
-  edges.forEach((edge) => {
-    if (edge.type === "fault" || edge.type === "fault-end") {
-      const list = faultEdgesBySource.get(edge.source) || [];
-      list.push(edge);
-      faultEdgesBySource.set(edge.source, list);
+  // Calculate global fault lane positions if not provided
+  const calculatedFaultLanes = useMemo(() => {
+    if (faultLanes && faultLanes.size > 0) {
+      return faultLanes;
     }
-  });
+    
+    // Fallback: calculate fault lanes from scratch
+    const lanes = new Map<string, FaultLaneInfo>();
+    const faultEdges = edges.filter(e => e.type === "fault" || e.type === "fault-end");
+    
+    // Find the maximum X of all non-fault nodes (content area)
+    let contentMaxRight = 0;
+    nodes.forEach(node => {
+      const incomingEdges = edges.filter(e => e.target === node.id);
+      const hasFaultIncoming = incomingEdges.some(e => e.type === "fault" || e.type === "fault-end");
+      if (!hasFaultIncoming) {
+        contentMaxRight = Math.max(contentMaxRight, node.x + node.width);
+      }
+    });
+    
+    // Sort fault edges by source Y position for consistent lane assignment
+    const sortedFaultEdges = [...faultEdges].sort((a, b) => {
+      const srcA = nodeMap.get(a.source);
+      const srcB = nodeMap.get(b.source);
+      if (!srcA || !srcB) return 0;
+      return srcA.y - srcB.y;
+    });
+    
+    // Assign lanes
+    sortedFaultEdges.forEach((edge, index) => {
+      const src = nodeMap.get(edge.source);
+      const tgt = nodeMap.get(edge.target);
+      if (!src || !tgt) return;
+      
+      const baseLaneX = contentMaxRight + FAULT_LANE_CLEARANCE;
+      const laneX = baseLaneX + index * 40;
+      
+      lanes.set(edge.id, {
+        edgeId: edge.id,
+        sourceId: edge.source,
+        targetId: edge.target,
+        sourceY: src.y + src.height / 2,
+        targetY: tgt.y + tgt.height / 2,
+        globalFaultIndex: index,
+        laneX: laneX,
+      });
+    });
+    
+    return lanes;
+  }, [faultLanes, edges, nodes, nodeMap]);
 
   edges.forEach((edge) => {
     if (handledEdges.has(edge.id)) return;
@@ -338,6 +384,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     const tgtCenterX = tgt.x + tgt.width / 2;
     const tgtTopY = tgt.y;
     const tgtLeftX = tgt.x;
+    const tgtRightX = tgt.x + tgt.width;
     const tgtCenterY = tgt.y + tgt.height / 2;
 
     const isFault = edge.type === "fault";
@@ -352,79 +399,55 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         (edge.source === selectedNodeId || edge.target === selectedNodeId));
 
     let path: string;
-    let faultGoToTurnX: number | null = null;
-    let faultGoToLabelY: number | null = null;
+    let faultLabelX: number | null = null;
+    let faultLabelY: number | null = null;
     const showAsRed = isFault || isFaultEnd;
     const showAsBlue = isGoTo && !showAsRed;
 
+    // Get the pre-calculated fault lane info for this edge
+    const faultLaneInfo = calculatedFaultLanes.get(edge.id);
+
     if (isFaultEnd) {
-      // Straight horizontal line for fault-end
+      // Straight horizontal line for fault-end (target is at same Y level)
       path = ConnectorPathService.createStraightPath(
         { x: srcRightX, y: srcCenterY },
         { x: tgtLeftX, y: srcCenterY }
       );
+      faultLabelX = (srcRightX + tgtLeftX) / 2;
+      faultLabelY = srcCenterY - 12;
     } else if (isFaultGoTo) {
-      // Fault GoTo: exits right, goes to fault lane, then approaches target
-      const faultEdges = faultEdgesBySource.get(edge.source) || [];
-      const faultIndex = faultEdges.findIndex((e) => e.id === edge.id);
-
-      // Check if target is already in the fault lane (to the right of source)
-      const targetInFaultLane = tgt.x > src.x + src.width;
-
-      // Count how many other fault edges (from any source) also target this node
-      // to stagger vertical positions and avoid overlap
-      let targetFaultIndex = 0;
-      edges.forEach((e) => {
-        if (
-          (e.type === "fault" || e.type === "fault-end") &&
-          e.target === edge.target &&
-          e.id !== edge.id
-        ) {
-          // Check if this other edge's source is below our source
-          const otherSrc = nodeMap.get(e.source);
-          if (otherSrc && otherSrc.y > src.y) {
-            targetFaultIndex++;
-          }
-        }
-      });
-      const verticalOffset = targetFaultIndex * 20;
+      // Fault GoTo: use the pre-calculated lane for consistent routing
+      const laneX = faultLaneInfo?.laneX ?? (srcRightX + FAULT_LANE_CLEARANCE);
+      const targetInFaultLane = tgt.x > laneX;
 
       if (targetInFaultLane) {
-        // Target is in fault lane - enter from the left side
+        // Target is to the right of our lane - connect from left
         path = ConnectorPathService.createFaultGoToPath(
           { x: srcRightX, y: srcCenterY },
-          { x: tgtLeftX, y: tgt.y + tgt.height / 2 },
-          { faultIndex, targetInFaultLane: true, verticalOffset }
+          { x: tgtLeftX, y: tgtCenterY },
+          { laneX, targetInFaultLane: true }
         );
-        faultGoToTurnX = ConnectorPathService.getFaultGoToLaneX(srcRightX, {
-          faultIndex,
-          verticalOffset,
-        });
-        faultGoToLabelY = srcCenterY - 12;
       } else {
-        // Target is in main flow - enter from the right side
+        // Target is to the left of our lane - connect from right
         path = ConnectorPathService.createFaultGoToPath(
           { x: srcRightX, y: srcCenterY },
-          { x: tgt.x + tgt.width, y: tgt.y + tgt.height / 2 },
-          { faultIndex, targetInFaultLane: false }
+          { x: tgtRightX, y: tgtCenterY },
+          { laneX, targetInFaultLane: false }
         );
-        const laneX = Math.max(
-          Math.max(srcRightX, tgt.x + tgt.width) + FAULT_LANE_CLEARANCE,
-          srcRightX + FAULT_LANE_CLEARANCE + faultIndex * 20
-        );
-        faultGoToTurnX = laneX;
-        faultGoToLabelY = srcCenterY - 12;
       }
+      faultLabelX = (srcRightX + laneX) / 2;
+      faultLabelY = srcCenterY - 12;
     } else if (isFault) {
-      // Get fault index for staggering
-      const faultEdges = faultEdgesBySource.get(edge.source) || [];
-      const faultIndex = faultEdges.findIndex((e) => e.id === edge.id);
-
+      // Regular fault path: use the pre-calculated lane
+      const laneX = faultLaneInfo?.laneX ?? (srcRightX + FAULT_LANE_CLEARANCE);
+      
       path = ConnectorPathService.createFaultPath(
         { x: srcRightX, y: srcCenterY },
         { x: tgtLeftX, y: tgtCenterY },
-        { faultIndex }
+        { laneX }
       );
+      faultLabelX = (srcRightX + laneX) / 2;
+      faultLabelY = srcCenterY - 12;
     } else if (isLoopBack) {
       path = ConnectorPathService.createLoopBackPath(
         { x: srcCenterX, y: srcBottomY },
@@ -448,13 +471,9 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     let labelX = (srcCenterX + tgtCenterX) / 2;
     let labelY = srcBottomY + 20;
 
-    if (isFaultGoTo && faultGoToTurnX !== null) {
-      // Place label midway across the initial horizontal segment with correct clearance
-      labelX = (srcRightX + faultGoToTurnX) / 2;
-      labelY = faultGoToLabelY ?? srcCenterY - 12;
-    } else if (isFault || isFaultEnd) {
-      labelX = (srcRightX + tgtLeftX) / 2;
-      labelY = srcCenterY - 12;
+    if (faultLabelX !== null && faultLabelY !== null) {
+      labelX = faultLabelX;
+      labelY = faultLabelY;
     } else if (isLoopBack) {
       // Position loop-back label on the left side of the loop
       const minX = Math.min(srcCenterX, tgtCenterX);

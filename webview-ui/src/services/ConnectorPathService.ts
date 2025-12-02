@@ -4,37 +4,18 @@
  * Generates SVG path strings for flow connectors.
  * Centralizes all path generation logic for consistent connector rendering.
  *
- * Based on Salesforce's alcConnector patterns.
+ * Based on Salesforce's alcConnector patterns from autoLayoutCanvas.js
  */
 
 import type { Point } from "../hooks/useCanvasInteraction";
-import { FAULT_LANE_CLEARANCE, GRID_H_GAP } from "../constants/dimensions";
+import { FAULT_LANE_CLEARANCE } from "../constants/dimensions";
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const DEFAULT_CORNER_RADIUS = 12;
-const FAULT_LANE_OFFSET = FAULT_LANE_CLEARANCE;
-const FAULT_HORIZONTAL_OFFSET = Math.max(
-  Math.round(FAULT_LANE_OFFSET * 0.65),
-  GRID_H_GAP + 40
-);
-const FAULT_GOTO_SOURCE_OFFSET = Math.max(
-  Math.round(FAULT_LANE_OFFSET * 0.45),
-  GRID_H_GAP + 24
-);
-const FAULT_GOTO_STACK_OFFSET = Math.max(Math.round(GRID_H_GAP / 3), 16);
-const FAULT_GOTO_VERTICAL_STACK_MULTIPLIER = 10;
-const REGULAR_FAULT_TARGET_CLEARANCE = Math.max(
-  Math.round(FAULT_LANE_OFFSET * 0.25),
-  24
-);
-const REGULAR_FAULT_STACK_OFFSET = Math.max(Math.round(GRID_H_GAP / 2.5), 18);
-const REGULAR_FAULT_MIN_TARGET_CLEARANCE = Math.max(
-  Math.round(GRID_H_GAP / 2),
-  20
-);
+const FAULT_LANE_GAP = 40; // Gap between stacked fault lanes
 
 // ============================================================================
 // TYPES
@@ -54,6 +35,7 @@ export interface BranchDropOptions extends PathOptions {
 
 export interface FaultPathOptions extends PathOptions {
   faultIndex?: number;
+  laneX?: number; // Pre-calculated lane X position (from layout engine)
 }
 
 // ============================================================================
@@ -133,12 +115,69 @@ export class ConnectorPathService {
   }
 
   /**
-   * Create a fault GoTo connector path
-   * Goes right from source, down, then left to target's right side
-   * Used when a fault connector targets a node in the main flow (GoTo)
+   * Create a fault connector path following Salesforce's pattern
+   * 
+   * The path always follows this structure:
+   * 1. Exit horizontally from source right side
+   * 2. Turn down (or up) at the fault lane
+   * 3. Travel vertically in the fault lane
+   * 4. Turn left to enter target from the right
    *
    * @param src - Source point (right side of source node)
-   * @param tgt - Target point (right side of target node for main flow, left side for fault lane)
+   * @param tgt - Target point (left side of target node)
+   * @param options - Path options including pre-calculated lane position
+   */
+  static createFaultPath(
+    src: Point,
+    tgt: Point,
+    options: FaultPathOptions = {}
+  ): string {
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, laneX, faultIndex = 0 } = options;
+
+    // Straight horizontal line if nearly horizontal and target is to the right
+    if (Math.abs(tgt.y - src.y) < 5 && tgt.x > src.x) {
+      return this.createStraightPath(src, tgt);
+    }
+
+    // Calculate the lane X position
+    // Use pre-calculated lane if provided, otherwise calculate based on positions
+    const calculatedLaneX = laneX ?? this.calculateFaultLaneX(src.x, tgt.x, faultIndex);
+    
+    const goingDown = tgt.y > src.y;
+    const r = cornerRadius;
+
+    // Build the path: right → vertical → left to target
+    if (goingDown) {
+      // Source above target: right → down → left
+      return `M ${src.x} ${src.y}
+              L ${calculatedLaneX - r} ${src.y}
+              Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y + r}
+              L ${calculatedLaneX} ${tgt.y - r}
+              Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX - r} ${tgt.y}
+              L ${tgt.x} ${tgt.y}`;
+    } else {
+      // Source below target: right → up → left
+      return `M ${src.x} ${src.y}
+              L ${calculatedLaneX - r} ${src.y}
+              Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y - r}
+              L ${calculatedLaneX} ${tgt.y + r}
+              Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX - r} ${tgt.y}
+              L ${tgt.x} ${tgt.y}`;
+    }
+  }
+
+  /**
+   * Create a fault GoTo connector path
+   * Used when a fault connector targets a node in the main flow
+   * 
+   * The path structure:
+   * 1. Exit horizontally from source right side
+   * 2. Travel to the fault lane
+   * 3. Travel vertically in the fault lane
+   * 4. Turn to enter target from appropriate side
+   *
+   * @param src - Source point (right side of source node)
+   * @param tgt - Target point (appropriate side of target node)
    * @param options - Path options
    */
   static createFaultGoToPath(
@@ -151,149 +190,81 @@ export class ConnectorPathService {
   ): string {
     const {
       cornerRadius = DEFAULT_CORNER_RADIUS,
+      laneX,
       faultIndex = 0,
       targetInFaultLane = false,
       verticalOffset = 0,
     } = options;
 
-    // If target is already in the fault lane (to the right), route more directly
-    if (targetInFaultLane || tgt.x > src.x + FAULT_HORIZONTAL_OFFSET) {
-      const turnX = this.getFaultGoToLaneX(src.x, {
-        faultIndex,
-        verticalOffset,
-      });
-      const goingDown = tgt.y > src.y;
-      const verticalYStart = goingDown
-        ? src.y + cornerRadius
-        : src.y - cornerRadius;
-      const verticalYEnd = goingDown
-        ? tgt.y - cornerRadius
-        : tgt.y + cornerRadius;
+    const r = cornerRadius;
+    
+    // Calculate lane position
+    const calculatedLaneX = laneX ?? (src.x + FAULT_LANE_CLEARANCE + faultIndex * FAULT_LANE_GAP + verticalOffset * 10);
+    
+    const goingDown = tgt.y > src.y;
 
+    if (targetInFaultLane || tgt.x > calculatedLaneX) {
+      // Target is to the right of our lane - connect from left
       if (goingDown) {
-        // Target below: right → down → right to target
         return `M ${src.x} ${src.y}
-                L ${turnX - cornerRadius} ${src.y}
-                Q ${turnX} ${src.y}, ${turnX} ${verticalYStart}
-                L ${turnX} ${verticalYEnd}
-                Q ${turnX} ${tgt.y}, ${turnX + cornerRadius} ${tgt.y}
+                L ${calculatedLaneX - r} ${src.y}
+                Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y + r}
+                L ${calculatedLaneX} ${tgt.y - r}
+                Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX + r} ${tgt.y}
                 L ${tgt.x} ${tgt.y}`;
       } else {
-        // Target above: right → up → right to target
         return `M ${src.x} ${src.y}
-                L ${turnX - cornerRadius} ${src.y}
-                Q ${turnX} ${src.y}, ${turnX} ${verticalYStart}
-                L ${turnX} ${verticalYEnd}
-                Q ${turnX} ${tgt.y}, ${turnX + cornerRadius} ${tgt.y}
+                L ${calculatedLaneX - r} ${src.y}
+                Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y - r}
+                L ${calculatedLaneX} ${tgt.y + r}
+                Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX + r} ${tgt.y}
+                L ${tgt.x} ${tgt.y}`;
+      }
+    } else {
+      // Target is to the left of our lane - connect from right
+      if (goingDown) {
+        return `M ${src.x} ${src.y}
+                L ${calculatedLaneX - r} ${src.y}
+                Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y + r}
+                L ${calculatedLaneX} ${tgt.y - r}
+                Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX - r} ${tgt.y}
+                L ${tgt.x} ${tgt.y}`;
+      } else {
+        return `M ${src.x} ${src.y}
+                L ${calculatedLaneX - r} ${src.y}
+                Q ${calculatedLaneX} ${src.y}, ${calculatedLaneX} ${src.y - r}
+                L ${calculatedLaneX} ${tgt.y + r}
+                Q ${calculatedLaneX} ${tgt.y}, ${calculatedLaneX - r} ${tgt.y}
                 L ${tgt.x} ${tgt.y}`;
       }
     }
-
-    // Target is in main flow (same column or to the left) - go into dedicated fault lane
-    const startClearance =
-      src.x + FAULT_LANE_CLEARANCE + faultIndex * 20 + verticalOffset;
-    const laneX = Math.max(
-      Math.max(src.x, tgt.x) + FAULT_LANE_CLEARANCE,
-      startClearance
-    );
-    const turnX = laneX;
-
-    // If target is above source, path goes: right → up → left
-    // If target is below source, path goes: right → down → left
-    const goingDown = tgt.y > src.y;
-
-    if (goingDown) {
-      return `M ${src.x} ${src.y}
-              L ${turnX - cornerRadius} ${src.y}
-              Q ${turnX} ${src.y}, ${turnX} ${src.y + cornerRadius}
-              L ${turnX} ${tgt.y - cornerRadius}
-              Q ${turnX} ${tgt.y}, ${turnX - cornerRadius} ${tgt.y}
-              L ${tgt.x} ${tgt.y}`;
-    } else {
-      return `M ${src.x} ${src.y}
-              L ${turnX - cornerRadius} ${src.y}
-              Q ${turnX} ${src.y}, ${turnX} ${src.y - cornerRadius}
-              L ${turnX} ${tgt.y + cornerRadius}
-              Q ${turnX} ${tgt.y}, ${turnX - cornerRadius} ${tgt.y}
-              L ${tgt.x} ${tgt.y}`;
-    }
   }
 
   /**
-   * Create a fault connector path (exits horizontally from right side)
-   *
-   * @param src - Source point (right side of node)
-   * @param tgt - Target point
-   * @param options - Path options including fault index for staggering
+   * Calculate the X position of the fault lane
+   * Ensures lanes don't overlap and are positioned consistently
    */
-  static createFaultPath(
-    src: Point,
-    tgt: Point,
-    options: FaultPathOptions = {}
-  ): string {
-    const { cornerRadius = DEFAULT_CORNER_RADIUS, faultIndex = 0 } = options;
-
-    // Check if nearly horizontal (allow small offsets to stay straight)
-    if (Math.abs(tgt.y - src.y) < 25) {
-      return this.createStraightPath(src, tgt);
-    }
-
-    const horizontalEndX = this.getRegularFaultLaneX(src.x, tgt.x, faultIndex);
-
-    if (tgt.y > src.y) {
-      // Target is below
-      return `M ${src.x} ${src.y} 
-              L ${horizontalEndX - cornerRadius} ${src.y}
-              Q ${horizontalEndX} ${src.y}, ${horizontalEndX} ${src.y + cornerRadius}
-              L ${horizontalEndX} ${tgt.y - cornerRadius}
-              Q ${horizontalEndX} ${tgt.y}, ${horizontalEndX + cornerRadius} ${tgt.y}
-              L ${tgt.x} ${tgt.y}`;
-    } else {
-      // Target is above
-      return `M ${src.x} ${src.y} 
-              L ${horizontalEndX - cornerRadius} ${src.y}
-              Q ${horizontalEndX} ${src.y}, ${horizontalEndX} ${src.y - cornerRadius}
-              L ${horizontalEndX} ${tgt.y + cornerRadius}
-              Q ${horizontalEndX} ${tgt.y}, ${horizontalEndX + cornerRadius} ${tgt.y}
-              L ${tgt.x} ${tgt.y}`;
-    }
-  }
-
-  /**
-   * Compute the X position of the near-source lane for fault GoTo connectors.
-   * Exported so renderers can align labels to the same lane.
-   */
-  static getFaultGoToLaneX(
-    srcX: number,
-    options: { faultIndex?: number; verticalOffset?: number } = {}
-  ): number {
-    const { faultIndex = 0, verticalOffset = 0 } = options;
-    return (
-      srcX +
-      FAULT_GOTO_SOURCE_OFFSET +
-      faultIndex * FAULT_GOTO_STACK_OFFSET +
-      verticalOffset * FAULT_GOTO_VERTICAL_STACK_MULTIPLIER
-    );
-  }
-
-  private static getRegularFaultLaneX(
+  private static calculateFaultLaneX(
     srcX: number,
     tgtX: number,
-    faultIndex: number = 0
+    faultIndex: number
   ): number {
-    const laneNearTarget =
-      tgtX -
-      REGULAR_FAULT_TARGET_CLEARANCE -
-      faultIndex * REGULAR_FAULT_STACK_OFFSET;
-    const minLane = srcX + FAULT_HORIZONTAL_OFFSET;
-    const maxLane = tgtX - REGULAR_FAULT_MIN_TARGET_CLEARANCE;
+    const baseLaneX = Math.max(srcX, tgtX) + FAULT_LANE_CLEARANCE;
+    return baseLaneX + faultIndex * FAULT_LANE_GAP;
+  }
 
-    if (maxLane <= minLane) {
-      return maxLane;
+  /**
+   * Get the X position of the fault lane for external use (e.g., label positioning)
+   */
+  static getFaultLaneX(
+    srcX: number,
+    options: { faultIndex?: number; laneX?: number } = {}
+  ): number {
+    const { faultIndex = 0, laneX } = options;
+    if (laneX !== undefined) {
+      return laneX;
     }
-
-    const clampedLane = Math.max(minLane, laneNearTarget);
-    return Math.min(clampedLane, maxLane);
+    return srcX + FAULT_LANE_CLEARANCE + faultIndex * FAULT_LANE_GAP;
   }
 
   /**

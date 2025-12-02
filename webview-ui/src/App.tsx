@@ -100,6 +100,7 @@ const AppContent: React.FC = () => {
     setAutoLayoutEnabled,
     loadFlow,
     goToTargetCounts,
+    faultLanes,
     fileName,
   } = useFlowParser();
 
@@ -397,6 +398,7 @@ const AppContent: React.FC = () => {
               selectedNodeId={selectedNode?.id}
               highlightedPath={highlightedPath}
               onEdgeClick={handleEdgeClick}
+              faultLanes={faultLanes}
             />
 
             {/* Nodes - render visible nodes */}

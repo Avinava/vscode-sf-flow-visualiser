@@ -34,13 +34,27 @@ export interface LayoutResult {
 }
 
 /**
+ * Fault lane assignment info - used to ensure consistent routing
+ * Based on Salesforce's approach of assigning each fault a global lane
+ */
+export interface FaultLaneInfo {
+  edgeId: string;
+  sourceId: string;
+  targetId: string;
+  sourceY: number;
+  targetY: number;
+  globalFaultIndex: number; // Global index across all faults in the flow
+  laneX: number; // The X position of the dedicated lane for this fault
+}
+
+/**
  * Tree Layout Engine
  *
  * Positions nodes using a tree-based algorithm that:
  * 1. Builds position maps for nodes
  * 2. Handles branching (Decision, Wait) and looping (Loop) nodes
  * 3. Calculates merge points for branch convergence
- * 4. Positions fault paths to the right
+ * 4. Positions fault paths to the right using dedicated lanes (Salesforce pattern)
  */
 export class TreeLayoutEngine {
   private config: LayoutConfig;
@@ -52,6 +66,11 @@ export class TreeLayoutEngine {
   private maxFaultX: number;
   private contentMaxRight: number;
   private faultTargetPositioned: Set<string>;
+  
+  // New: Global fault lane tracking (Salesforce pattern)
+  private faultLanes: Map<string, FaultLaneInfo>; // edgeId -> lane info
+  private faultLaneBaseX: number; // Base X position for the fault lane area
+  private allEdges: FlowEdge[]; // Keep reference to all edges for lane calculation
 
   constructor(
     nodes: FlowNode[],
@@ -67,6 +86,163 @@ export class TreeLayoutEngine {
     this.maxFaultX = this.config.start.x + this.getColWidth();
     this.contentMaxRight = this.config.start.x + this.config.node.width / 2;
     this.faultTargetPositioned = new Set();
+    
+    // Initialize global fault lane tracking
+    this.faultLanes = new Map();
+    this.faultLaneBaseX = this.config.start.x + this.config.node.width / 2 + FAULT_LANE_CLEARANCE;
+    this.allEdges = edges;
+    
+    // Pre-calculate fault lanes based on flow traversal order
+    this.preCalculateFaultLanesInFlowOrder();
+  }
+  
+  /**
+   * Pre-calculate fault lane assignments based on flow traversal order
+   * This walks the flow in the same order as layout, ensuring faults encountered
+   * earlier in the flow get lower lane indices (closer to the main content)
+   * 
+   * The algorithm also considers Y-range overlaps to prevent crossovers:
+   * When two fault paths have overlapping Y ranges, they are assigned to
+   * different lanes in a way that prevents crossing.
+   */
+  private preCalculateFaultLanesInFlowOrder(): void {
+    const faultEdges = this.allEdges.filter(
+      e => e.type === "fault" || e.type === "fault-end"
+    );
+    
+    if (faultEdges.length === 0) return;
+    
+    // Build a map of source nodes to their fault edges
+    const faultEdgesBySource = new Map<string, FlowEdge[]>();
+    faultEdges.forEach(edge => {
+      const list = faultEdgesBySource.get(edge.source) || [];
+      list.push(edge);
+      faultEdgesBySource.set(edge.source, list);
+    });
+    
+    // Traverse the flow in order to collect faults in traversal order
+    // Also track the traversal index for each node
+    const orderedFaultEdges: FlowEdge[] = [];
+    const visited = new Set<string>();
+    const traversalOrder = new Map<string, number>();
+    let traversalIndex = 0;
+    
+    const collectFaultsInOrder = (nodeId: string) => {
+      if (!nodeId || visited.has(nodeId)) return;
+      visited.add(nodeId);
+      traversalOrder.set(nodeId, traversalIndex++);
+      
+      // Collect any fault edges from this node (in traversal order)
+      const nodeFaults = faultEdgesBySource.get(nodeId);
+      if (nodeFaults) {
+        orderedFaultEdges.push(...nodeFaults);
+      }
+      
+      // Continue traversal through non-fault edges
+      const outs = this.outgoing.get(nodeId) || [];
+      const nonFaultOuts = outs.filter(
+        e => e.type !== "fault" && e.type !== "fault-end"
+      );
+      
+      // Handle branching nodes - traverse branches in order
+      const node = this.nodeMap.get(nodeId);
+      if (node && (node.type === "DECISION" || node.type === "WAIT" || 
+          (node.type === "START" && nonFaultOuts.length > 1))) {
+        // For branching nodes, traverse branches left to right
+        const sortedOuts = sortBranchEdges(node, nonFaultOuts);
+        sortedOuts.forEach(edge => collectFaultsInOrder(edge.target));
+      } else if (node && node.type === "LOOP") {
+        // For loops, traverse loop body first, then next
+        const loopBody = nonFaultOuts.find(e => e.type === "loop-next");
+        const loopEnd = nonFaultOuts.find(e => e.type === "loop-end" || e.type !== "loop-next");
+        if (loopBody) collectFaultsInOrder(loopBody.target);
+        if (loopEnd) collectFaultsInOrder(loopEnd.target);
+      } else {
+        // Linear traversal
+        nonFaultOuts.forEach(edge => collectFaultsInOrder(edge.target));
+      }
+    };
+    
+    // Start traversal from START_NODE
+    collectFaultsInOrder("START_NODE");
+    
+    // Now assign lanes using a greedy interval scheduling approach
+    // to avoid crossovers when Y ranges overlap
+    
+    // First, compute preliminary traversal indices for each fault edge
+    interface FaultEdgeInfo {
+      edge: FlowEdge;
+      sourceIndex: number;  // Traversal order of source
+      targetIndex: number;  // Traversal order of target (or Infinity if not in main flow)
+      minIndex: number;     // Earlier of source/target
+      maxIndex: number;     // Later of source/target
+    }
+    
+    const faultInfos: FaultEdgeInfo[] = orderedFaultEdges.map(edge => {
+      const srcIdx = traversalOrder.get(edge.source) ?? 0;
+      const tgtIdx = traversalOrder.get(edge.target) ?? Infinity;
+      return {
+        edge,
+        sourceIndex: srcIdx,
+        targetIndex: tgtIdx,
+        minIndex: Math.min(srcIdx, tgtIdx),
+        maxIndex: Math.max(srcIdx, tgtIdx),
+      };
+    });
+    
+    // Sort by source index (flow order) - this is our primary ordering
+    faultInfos.sort((a, b) => a.sourceIndex - b.sourceIndex);
+    
+    // Assign lanes to avoid overlaps
+    // lanes[i] contains the maxIndex of the fault currently using lane i
+    const lanes: number[] = [];
+    
+    faultInfos.forEach((info, _i) => {
+      // Find the first lane where this fault won't overlap with existing faults
+      // A fault can use a lane if its minIndex > lane's current maxIndex
+      let assignedLane = -1;
+      for (let laneIdx = 0; laneIdx < lanes.length; laneIdx++) {
+        if (info.minIndex > lanes[laneIdx]) {
+          // This lane is free (no overlap)
+          assignedLane = laneIdx;
+          lanes[laneIdx] = info.maxIndex;
+          break;
+        }
+      }
+      
+      if (assignedLane === -1) {
+        // Need a new lane
+        assignedLane = lanes.length;
+        lanes.push(info.maxIndex);
+      }
+      
+      const laneOffset = assignedLane * 40; // 40px spacing between fault lanes
+      const laneX = this.faultLaneBaseX + laneOffset;
+      
+      this.faultLanes.set(info.edge.id, {
+        edgeId: info.edge.id,
+        sourceId: info.edge.source,
+        targetId: info.edge.target,
+        sourceY: 0, // Will be updated after layout
+        targetY: 0,
+        globalFaultIndex: assignedLane,
+        laneX: laneX,
+      });
+    });
+  }
+  
+  /**
+   * Get the fault lane info for an edge
+   */
+  getFaultLaneInfo(edgeId: string): FaultLaneInfo | undefined {
+    return this.faultLanes.get(edgeId);
+  }
+  
+  /**
+   * Get all fault lane assignments
+   */
+  getAllFaultLanes(): Map<string, FaultLaneInfo> {
+    return this.faultLanes;
   }
 
   private getColWidth(): number {
@@ -398,7 +574,8 @@ export class TreeLayoutEngine {
   }
 
   /**
-   * Layout fault paths to the right of the node
+   * Layout fault paths to the right of the node using dedicated lanes
+   * Based on Salesforce's fault path layout pattern
    */
   private layoutFaultPaths(
     nodeId: string,
@@ -415,12 +592,10 @@ export class TreeLayoutEngine {
 
     const sourceWidth = this.getNodeWidth(nodeId);
     const sourceRight = centerX + sourceWidth / 2;
-    const faultLaneGap = this.getFaultLaneGap();
 
-    faultOuts.forEach((edge, faultIndex) => {
+    faultOuts.forEach((edge) => {
       const targetNode = this.nodeMap.get(edge.target);
       const targetWidth = targetNode?.width || this.config.node.width;
-      const targetHeight = targetNode?.height || this.config.node.height;
       const isFaultEnd =
         edge.type === "fault-end" || targetNode?.type === "END";
 
@@ -431,7 +606,7 @@ export class TreeLayoutEngine {
       );
 
       // Allow GoTo connectors to rely on the regular layout when the target is
-      // already part of the primary path. Otherwise, fall back to fault layout.
+      // already part of the primary path.
       if (edge.isGoTo && hasNonFaultIncoming) {
         return;
       }
@@ -439,16 +614,30 @@ export class TreeLayoutEngine {
       if (this.faultTargetPositioned.has(edge.target) && !isFaultEnd) return;
       if (localVisited.has(edge.target)) return;
 
-      const laneFromSource = sourceRight + faultLaneGap + targetWidth / 2;
-      const laneFromContent =
-        this.contentMaxRight + faultLaneGap + targetWidth / 2;
-      const laneFromPrev =
-        this.maxFaultX + (faultIndex ? targetWidth + faultLaneGap : 0);
-      const laneCenterX = Math.max(
-        laneFromSource,
-        laneFromContent,
-        laneFromPrev
-      );
+      // Get the pre-calculated fault lane for this edge
+      const faultLaneInfo = this.faultLanes.get(edge.id);
+      let laneCenterX: number;
+      
+      if (faultLaneInfo) {
+        // Use the pre-calculated lane position
+        laneCenterX = faultLaneInfo.laneX + targetWidth / 2;
+        
+        // Ensure the lane is far enough from the main content
+        const minLaneX = Math.max(
+          sourceRight + FAULT_LANE_CLEARANCE + targetWidth / 2,
+          this.contentMaxRight + FAULT_LANE_CLEARANCE + targetWidth / 2
+        );
+        laneCenterX = Math.max(laneCenterX, minLaneX);
+        
+        // Update the lane info with the final position
+        faultLaneInfo.laneX = laneCenterX - targetWidth / 2;
+      } else {
+        // Fallback for edges not in the pre-calculated map
+        const faultLaneGap = this.getFaultLaneGap();
+        const laneFromSource = sourceRight + faultLaneGap + targetWidth / 2;
+        const laneFromContent = this.contentMaxRight + faultLaneGap + targetWidth / 2;
+        laneCenterX = Math.max(laneFromSource, laneFromContent, this.maxFaultX);
+      }
 
       if (isFaultEnd) {
         // Position END node at same Y level for straight horizontal line
@@ -460,16 +649,13 @@ export class TreeLayoutEngine {
         this.faultTargetPositioned.add(edge.target);
         localVisited.add(edge.target);
       } else {
-        // Regular fault path target (assignment, screen, etc.)
+        // Regular fault path target
         this.faultTargetPositioned.add(edge.target);
 
         const dropOffset = this.faultOnlyNodes.has(edge.target)
           ? nodeHeight + this.config.grid.vGap
           : 0;
-        const stackOffset = faultIndex
-          ? faultIndex * (targetHeight + Math.max(this.config.grid.vGap, 40))
-          : 0;
-        const targetY = currentY + dropOffset + stackOffset;
+        const targetY = currentY + dropOffset;
 
         this.layoutNode(
           edge.target,
@@ -529,6 +715,46 @@ export function autoLayout(
     };
     return { ...n, x: pos.x - n.width / 2, y: pos.y };
   });
+}
+
+/**
+ * Extended auto-layout that also returns fault lane information
+ * for use in edge rendering
+ */
+export function autoLayoutWithFaultLanes(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  options: AutoLayoutOptions = {}
+): { nodes: FlowNode[]; faultLanes: Map<string, FaultLaneInfo> } {
+  if (nodes.length === 0) return { nodes, faultLanes: new Map() };
+
+  const startNodeId = options.startNodeId || "START_NODE";
+  const engine = new TreeLayoutEngine(nodes, edges, options);
+  const positions = engine.layout(startNodeId);
+  const faultLanes = engine.getAllFaultLanes();
+
+  // Apply positions to nodes (center horizontally)
+  const layoutedNodes = nodes.map((n) => {
+    const pos = positions.get(n.id) || {
+      x: options.config?.start.x || DEFAULT_LAYOUT_CONFIG.start.x,
+      y: options.config?.start.y || DEFAULT_LAYOUT_CONFIG.start.y,
+    };
+    return { ...n, x: pos.x - n.width / 2, y: pos.y };
+  });
+
+  // Update fault lane info with actual node positions
+  faultLanes.forEach((lane) => {
+    const srcNode = layoutedNodes.find(n => n.id === lane.sourceId);
+    const tgtNode = layoutedNodes.find(n => n.id === lane.targetId);
+    if (srcNode) {
+      lane.sourceY = srcNode.y + srcNode.height / 2;
+    }
+    if (tgtNode) {
+      lane.targetY = tgtNode.y + tgtNode.height / 2;
+    }
+  });
+
+  return { nodes: layoutedNodes, faultLanes };
 }
 
 export default autoLayout;

@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import type { ParsedFlow } from "../types";
 import { parseFlowXML } from "../parser";
-import { autoLayout } from "../layout";
+import { autoLayoutWithFaultLanes, type FaultLaneInfo } from "../layout";
 
 // Demo XML for testing when no file is loaded
 const DEMO_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -90,6 +90,8 @@ export interface UseFlowParserResult {
   loadFlow: (xml: string, fileName?: string) => void;
   /** Map of node IDs that are targets of GoTo connectors with their counts */
   goToTargetCounts: Map<string, number>;
+  /** Pre-calculated fault lane information for consistent connector routing */
+  faultLanes: Map<string, FaultLaneInfo>;
   /** Parsing error if any */
   error: Error | null;
 }
@@ -116,6 +118,7 @@ export function useFlowParser(
   const [fileName, setFileName] = useState("");
   const [autoLayoutEnabled, setAutoLayoutEnabled] = useState(initialAutoLayout);
   const [parsedData, setParsedData] = useState<ParsedFlow>(EMPTY_PARSED_FLOW);
+  const [faultLanes, setFaultLanes] = useState<Map<string, FaultLaneInfo>>(new Map());
   const [error, setError] = useState<Error | null>(null);
 
   // Parse XML whenever input or auto-layout setting changes
@@ -124,14 +127,20 @@ export function useFlowParser(
       const { nodes, edges, metadata } = parseFlowXML(xmlInput);
 
       if (autoLayoutEnabled && nodes.length > 0) {
+        // Use the enhanced layout function that also returns fault lane info
+        const { nodes: layoutedNodes, faultLanes: calculatedFaultLanes } = 
+          autoLayoutWithFaultLanes(nodes, edges);
+        
         setParsedData({
-          nodes: autoLayout(nodes, edges),
+          nodes: layoutedNodes,
           edges,
           metadata,
           xmlContent: xmlInput, // Store for quality analysis
         });
+        setFaultLanes(calculatedFaultLanes);
       } else {
         setParsedData({ nodes, edges, metadata, xmlContent: xmlInput });
+        setFaultLanes(new Map());
       }
 
       setError(null);
@@ -171,6 +180,7 @@ export function useFlowParser(
     setAutoLayoutEnabled,
     loadFlow,
     goToTargetCounts,
+    faultLanes,
     error,
   };
 }

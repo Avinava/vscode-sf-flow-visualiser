@@ -5,8 +5,8 @@
  */
 
 // Main auto-layout function (backward compatible export)
-export { autoLayout, TreeLayoutEngine } from "./treeLayoutEngine";
-export type { AutoLayoutOptions, LayoutResult } from "./treeLayoutEngine";
+export { autoLayout, autoLayoutWithFaultLanes, TreeLayoutEngine } from "./treeLayoutEngine";
+export type { AutoLayoutOptions, LayoutResult, FaultLaneInfo } from "./treeLayoutEngine";
 
 // Layout configuration
 export {
