@@ -2,7 +2,7 @@
   "name": "sf-flow-visualizer",
   "displayName": "SF Flow Visualizer",
   "description": "Visualize Salesforce Flow XML files with an interactive diagram",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "publisher": "avidev9",
   "license": "MIT",
   "repository": {
@@ -119,6 +119,7 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
-    "@flow-scanner/lightning-flow-scanner-core": "^6.6.1"
+    "@flow-scanner/lightning-flow-scanner-core": "^6.6.1",
+    "html-to-image": "^1.11.13"
   }
 }

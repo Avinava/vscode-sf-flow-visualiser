@@ -1,13 +1,21 @@
 # Changelog
 
 All notable changes to the SF Flow Visualizer extension will be documented in this file.
+All notable changes in the SF Flow Visualizer extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- markdownlint-disable MD024 -->
 
-## [1.1.5] - 2025-12-01
+## [1.1.6] - 2025-12-03
+
+### Fixed
+- Improved flow centering logic: Initial load and "Home" button now specifically center the **Start Node** instead of the entire flow bounding box. This fixes an issue where asymmetric flows appeared shifted to the left.
+- "Fit to View" (F key) continues to fit all content within the viewport.
+- Ensured consistent behavior between initial load and Home button.
+
+## [1.1.5] - 2025-12-021
 
 ### Fixed
 

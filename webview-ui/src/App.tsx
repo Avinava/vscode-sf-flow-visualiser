@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
@@ -24,14 +24,18 @@ import {
 // Import utilities
 import { computeVisibility, getBranchingNodeIds } from "./utils/collapse";
 import { calculateComplexity } from "./utils/complexity";
-import { analyzeFlow, type FlowQualityMetrics } from "./utils/flow-scanner";
+import {
+  FlowNode,
+} from "./types";
+import { analyzeFlow, FlowQualityMetrics, FlowViolation } from "./utils/flow-scanner";
 
 // Import types
-import type { BoundingBox } from "./hooks/useCanvasInteraction";
+import { BoundingBox } from "./hooks/useCanvasInteraction";
 
 import { getVSCodeApi } from "./utils/vscodeApi";
 
 // ... (keep existing imports)
+import { toPng } from "html-to-image";
 
 // ============================================================================
 // MAIN APP CONTENT
@@ -46,6 +50,9 @@ const AppContent: React.FC = () => {
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
   const [qualityMetrics, setQualityMetrics] =
     useState<FlowQualityMetrics | null>(null);
+  
+  // Track when a new flow is loaded to trigger auto-center
+  const shouldAutoCenter = useRef(false);
 
   // Get VS Code API
   const vscode = useMemo(() => getVSCodeApi(), []);
@@ -99,6 +106,7 @@ const AppContent: React.FC = () => {
     setAutoLayoutEnabled,
     loadFlow,
     goToTargetCounts,
+    faultLanes,
     fileName,
   } = useFlowParser();
 
@@ -164,7 +172,7 @@ const AppContent: React.FC = () => {
         message: string;
       }>
     >();
-    qualityMetrics.violations.forEach((violation) => {
+    qualityMetrics.violations.forEach((violation: FlowViolation) => {
       if (violation.elementName) {
         if (!map.has(violation.elementName)) {
           map.set(violation.elementName, []);
@@ -210,6 +218,11 @@ const AppContent: React.FC = () => {
     };
   }, [visibleNodes]);
 
+  // Get Start Node for centering
+  const getStartNode = useCallback((): FlowNode | null => {
+    return visibleNodes.find(n => n.type === 'START') || null;
+  }, [visibleNodes]);
+
   // Canvas interaction hook with theme toggle callback
   const {
     state,
@@ -224,6 +237,7 @@ const AppContent: React.FC = () => {
   } = useCanvasInteraction({
     onToggleTheme: toggleTheme,
     onToggleAnimation: toggleAnimation,
+    startNodeGetter: getStartNode,
   });
 
   // Set up node bounds getter when nodes change
@@ -249,16 +263,26 @@ const AppContent: React.FC = () => {
     [clearSelection, selectEdge]
   );
 
-  // Handle new flow from VS Code - reset canvas state
+  // Handle new flow from VS Code - mark for auto-center
   const handleLoadXml = useCallback(
     (xml: string, newFileName?: string) => {
       loadFlow(xml, newFileName);
       clearSelection();
       clearEdgeSelection();
-      resetView();
+      // Mark that we should auto-center when nodes are loaded
+      shouldAutoCenter.current = true;
     },
-    [loadFlow, clearSelection, clearEdgeSelection, resetView]
+    [loadFlow, clearSelection, clearEdgeSelection]
   );
+
+  // Auto-center flow when nodes are first loaded (same as home button)
+  useEffect(() => {
+    if (shouldAutoCenter.current && visibleNodes.length > 0) {
+      // Use the same function as home button for consistent behavior
+      resetView();
+      shouldAutoCenter.current = false;
+    }
+  }, [visibleNodes, resetView]);
 
   // VS Code messaging hook - must be last to use other callbacks
   const { postMessage } = useVSCodeMessaging({
@@ -272,6 +296,71 @@ const AppContent: React.FC = () => {
       payload: { enabled: !autoOpenViewerEnabled },
     });
   }, [autoOpenViewerEnabled, postMessage]);
+
+  const handleExportImage = useCallback(async () => {
+    // Use the inner content div which contains the nodes/edges
+    const flowContent = document.getElementById("flow-canvas-content");
+
+    if (flowContent && visibleNodes.length > 0) {
+      try {
+        // Calculate bounds of all visible nodes
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        visibleNodes.forEach((node) => {
+          minX = Math.min(minX, node.x);
+          minY = Math.min(minY, node.y);
+          maxX = Math.max(maxX, node.x + node.width);
+          maxY = Math.max(maxY, node.y + node.height);
+        });
+
+        // Add padding
+        const padding = 100;
+        const width = maxX - minX + padding * 2 + 200; // Add extra buffer for right-side clipping
+        const height = maxY - minY + padding * 2;
+
+        // Capture with specific dimensions and transform reset
+        const dataUrl = await toPng(flowContent, {
+          backgroundColor: isDark ? "#0f172a" : "#ffffff",
+          width: width,
+          height: height,
+          style: {
+            transform: `translate(${-minX + padding}px, ${-minY + padding}px) scale(1)`,
+            transformOrigin: "0 0",
+            width: `${width}px`,
+            height: `${height}px`,
+            // Override any fixed dimensions from the container
+            maxWidth: "none",
+            maxHeight: "none",
+          },
+          pixelRatio: 2,
+        });
+
+        postMessage({
+          command: "saveImage",
+          payload: {
+            dataUrl,
+            fileName: `${fileName.replace(".flow-meta.xml", "")}.png`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to export image:", error);
+        postMessage({
+          command: "alert",
+          text: "Failed to export image. See console for details.",
+        });
+      }
+    } else {
+      postMessage({
+        command: "alert",
+        text: "No flow content to export.",
+      });
+    }
+  }, [isDark, fileName, postMessage, visibleNodes]);
+
+
 
   return (
     <div
@@ -314,6 +403,7 @@ const AppContent: React.FC = () => {
             onToggleAutoLayout={() => setAutoLayoutEnabled(!autoLayoutEnabled)}
             onToggleAutoOpen={handleToggleAutoOpenPreference}
             onToggleScan={toggleScan}
+            onExportImage={handleExportImage}
           />
 
           {/* Canvas */}
@@ -330,6 +420,7 @@ const AppContent: React.FC = () => {
               selectedNodeId={selectedNode?.id}
               highlightedPath={highlightedPath}
               onEdgeClick={handleEdgeClick}
+              faultLanes={faultLanes}
             />
 
             {/* Nodes - render visible nodes */}

@@ -5,12 +5,11 @@
  * Provides smooth canvas navigation with mouse, wheel, and keyboard controls.
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { FlowNode, Point } from "../types";
 
-export interface Point {
-  x: number;
-  y: number;
-}
+// Re-export Point for consumers of this hook
+export type { Point };
 
 export interface BoundingBox {
   minX: number;
@@ -19,6 +18,11 @@ export interface BoundingBox {
   maxY: number;
   width: number;
   height: number;
+}
+
+export interface CanvasState {
+  scale: number;
+  pan: Point;
 }
 
 export interface CanvasState {
@@ -39,6 +43,7 @@ export interface UseCanvasInteractionOptions {
   zoomStep?: number;
   /** Callback to get node bounds for fit-to-view */
   getNodeBounds?: () => BoundingBox | null;
+  startNodeGetter?: () => FlowNode | null;
   /** Callback to toggle theme */
   onToggleTheme?: () => void;
   /** Callback to toggle animation */
@@ -56,9 +61,11 @@ export interface UseCanvasInteractionResult {
   zoomIn: () => void;
   /** Zoom out function */
   zoomOut: () => void;
-  /** Reset to initial view */
+  /** Reset to initial view (90% scale, centered) */
   resetView: () => void;
-  /** Fit all nodes in view */
+  /** Center view at 90% scale */
+  centerView: () => void;
+  /** Fit all nodes in view (dynamic scale) */
   fitToView: () => void;
   /** Set scale directly */
   setScale: (scale: number) => void;
@@ -73,7 +80,7 @@ export interface UseCanvasInteractionResult {
 const DEFAULT_OPTIONS: Required<
   Omit<
     UseCanvasInteractionOptions,
-    "getNodeBounds" | "onToggleTheme" | "onToggleAnimation"
+    "getNodeBounds" | "onToggleTheme" | "onToggleAnimation" | "startNodeGetter"
   >
 > = {
   initialScale: 0.9,
@@ -191,47 +198,109 @@ export function useCanvasInteraction(
     setScaleState((prev) => clampScale(prev - config.zoomStep * 1.5));
   }, [config.zoomStep, clampScale]);
 
-  // Reset to initial view
-  const resetView = useCallback(() => {
-    setPanState(config.initialPan);
-    setScaleState(config.initialScale);
-  }, [config.initialPan, config.initialScale]);
+  // Center view at fixed 90% scale (for initial load and home button)
+  const centerView = useCallback(() => {
+    // Try to center on Start Node first
+    const getStartNode = config.startNodeGetter;
+    if (getStartNode) {
+      const startNode = getStartNode();
+      if (startNode) {
+        // Get viewport dimensions
+        const viewportWidth = window.innerWidth;
+        const padding = 100; // Padding around content
+        const fixedScale = 0.9;
 
-  // Fit all nodes to view
-  const fitToView = useCallback(() => {
+        // Calculate center based on Start Node
+        const centerX = startNode.x + startNode.width / 2;
+        // const centerY = startNode.y + startNode.height / 2; // Unused for top positioning
+
+        // Calculate pan needed to center the Start Node
+        const panX = viewportWidth / 2 - centerX * fixedScale;
+        const panY = padding - startNode.y * fixedScale + 30; // Top position with padding
+
+        setScaleState(fixedScale);
+        setPanState({ x: panX, y: panY });
+        return;
+      }
+    }
+
+    // Fallback to bounding box if no Start Node found
     const getBounds = nodeBoundsGetterRef.current;
     if (!getBounds) {
-      resetView();
+      // Fallback to default values if no bounds getter
+      setPanState(config.initialPan);
+      setScaleState(config.initialScale);
       return;
     }
 
     const bounds = getBounds();
     if (!bounds) {
-      resetView();
+      // Fallback to default values if no bounds available
+      setPanState(config.initialPan);
+      setScaleState(config.initialScale);
       return;
     }
 
-    // Get viewport dimensions (approximate, assuming full canvas area)
-    const viewportWidth = window.innerWidth - 320; // Subtract sidebar width
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const padding = 100; // Padding around content
+
+    // Use fixed 90% scale for consistent sizing
+    const fixedScale = 0.9;
+
+    // Calculate horizontal center
+    const centerX = bounds.minX + bounds.width / 2;
+
+    // Calculate pan needed to center horizontally and position from top
+    const panX = viewportWidth / 2 - centerX * fixedScale;
+    const panY = padding - bounds.minY * fixedScale + 30; // Top position with padding
+
+    setScaleState(fixedScale);
+    setPanState({ x: panX, y: panY });
+  }, [config.initialPan, config.initialScale, config.startNodeGetter]);
+
+  // Fit all nodes to view with dynamic scale calculation
+  const fitToView = useCallback(() => {
+    const getBounds = nodeBoundsGetterRef.current;
+    if (!getBounds) {
+      // Fallback to centerView if no bounds getter
+      centerView();
+      return;
+    }
+
+    const bounds = getBounds();
+    if (!bounds) {
+      // Fallback to centerView if no bounds available
+      centerView();
+      return;
+    }
+
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight - 60; // Subtract header height
     const padding = 100; // Padding around content
 
-    // Calculate scale to fit content
+    // Calculate scale to fit all content in view
     const scaleX = (viewportWidth - padding * 2) / bounds.width;
     const scaleY = (viewportHeight - padding * 2) / bounds.height;
-    const newScale = clampScale(Math.min(scaleX, scaleY, 1)); // Don't zoom in beyond 100%
+    const dynamicScale = clampScale(Math.min(scaleX, scaleY, 1)); // Don't zoom in beyond 100%
 
-    // Calculate pan to center content
+    // Calculate horizontal center
     const centerX = bounds.minX + bounds.width / 2;
-    const centerY = bounds.minY + bounds.height / 2;
 
-    // Calculate pan needed to center the content
-    const panX = viewportWidth / 2 - centerX * newScale + 160; // Offset for sidebar
-    const panY = viewportHeight / 2 - centerY * newScale + 30;
+    // Calculate pan needed to center horizontally and position from top
+    const panX = viewportWidth / 2 - centerX * dynamicScale;
+    const panY = padding - bounds.minY * dynamicScale + 30; // Top position with padding
 
-    setScaleState(newScale);
+    setScaleState(dynamicScale);
     setPanState({ x: panX, y: panY });
-  }, [clampScale, resetView]);
+  }, [centerView, clampScale]);
+
+  // Reset to centered view (same as initial load) - always 90% scale
+  const resetView = useCallback(() => {
+    // Call centerView for consistent 90% scale, just like initial load
+    centerView();
+  }, [centerView]);
 
   // Set node bounds getter
   const setNodeBoundsGetter = useCallback(
@@ -313,6 +382,7 @@ export function useCanvasInteraction(
     zoomIn,
     zoomOut,
     resetView,
+    centerView,
     fitToView,
     setScale,
     setPan,

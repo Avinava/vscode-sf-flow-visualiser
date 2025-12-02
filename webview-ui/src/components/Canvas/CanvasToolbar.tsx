@@ -21,6 +21,7 @@ import {
   EyeOff,
   Workflow,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import { useTheme } from "../../context";
 
@@ -35,7 +36,9 @@ export interface CanvasToolbarProps {
   onToggleAutoLayout: () => void;
   onToggleAutoOpen: () => void;
   scanEnabled: boolean;
+
   onToggleScan: () => void;
+  onExportImage: () => void;
 }
 
 export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
@@ -50,6 +53,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   onToggleAutoLayout,
   onToggleAutoOpen,
   onToggleScan,
+  onExportImage,
 }) => {
   const { isDark, toggleTheme, animateFlow, toggleAnimation } = useTheme();
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -85,6 +89,14 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
           title="Fit to View (F)"
         >
           <Maximize size={16} className="text-slate-600 dark:text-slate-300" />
+        </button>
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
+        <button
+          onClick={onExportImage}
+          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          title="Export as Image"
+        >
+          <Download size={16} className="text-slate-600 dark:text-slate-300" />
         </button>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5"></div>
         <button

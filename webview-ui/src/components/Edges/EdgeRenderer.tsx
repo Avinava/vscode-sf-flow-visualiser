@@ -9,6 +9,7 @@
 
 import React, { useMemo } from "react";
 import type { FlowNode, FlowEdge } from "../../types";
+import type { FaultLaneInfo } from "../../layout";
 import { EdgeMarkers } from "./EdgeMarkers";
 import {
   BranchLines,
@@ -30,6 +31,8 @@ export interface EdgeRendererProps {
   selectedNodeId?: string;
   highlightedPath?: Set<string>;
   onEdgeClick?: (edgeId: string) => void;
+  /** Pre-calculated fault lane information for consistent connector routing */
+  faultLanes?: Map<string, FaultLaneInfo>;
 }
 
 /**
@@ -41,6 +44,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
   selectedNodeId,
   highlightedPath,
   onEdgeClick,
+  faultLanes,
 }) => {
   const { animateFlow } = useTheme();
 
@@ -102,6 +106,7 @@ export const EdgeRenderer: React.FC<EdgeRendererProps> = ({
         animateFlow={animateFlow}
         highlightedPath={highlightedPath}
         onEdgeClick={onEdgeClick}
+        faultLanes={faultLanes}
       />
     </svg>
   );

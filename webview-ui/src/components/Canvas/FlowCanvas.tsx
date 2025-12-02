@@ -34,6 +34,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   return (
     <div
       ref={canvasRef}
+      id="flow-canvas-container"
       className="w-full h-full cursor-grab select-none"
       onMouseDown={onMouseDown}
       onWheel={onWheel}
@@ -47,6 +48,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       }}
     >
       <div
+        id="flow-canvas-content"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
           transformOrigin: "0 0",
