@@ -34,3 +34,8 @@ export type { SidebarProps, NodeDetailsProps, FlowStatsProps } from "./Sidebar";
 // Header component
 export { FlowHeader } from "./FlowHeader";
 export type { FlowHeaderProps } from "./FlowHeader";
+
+// Utility components
+export { ErrorBoundary } from "./ErrorBoundary/ErrorBoundary";
+export { EmptyState } from "./EmptyState/EmptyState";
+export { LoadingOverlay } from "./LoadingOverlay/LoadingOverlay";

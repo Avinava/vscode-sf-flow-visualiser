@@ -94,6 +94,8 @@ export interface UseFlowParserResult {
   faultLanes: Map<string, FaultLaneInfo>;
   /** Parsing error if any */
   error: Error | null;
+  /** Whether parsing is in progress */
+  isLoading: boolean;
 }
 
 const EMPTY_PARSED_FLOW: ParsedFlow = {
@@ -121,34 +123,44 @@ export function useFlowParser(
   const [faultLanes, setFaultLanes] = useState<Map<string, FaultLaneInfo>>(new Map());
   const [error, setError] = useState<Error | null>(null);
 
+  const [isLoading, setIsLoading] = useState(false);
+
   // Parse XML whenever input or auto-layout setting changes
   useEffect(() => {
-    try {
-      const { nodes, edges, metadata } = parseFlowXML(xmlInput);
-
-      if (autoLayoutEnabled && nodes.length > 0) {
-        // Use the enhanced layout function that also returns fault lane info
-        const { nodes: layoutedNodes, faultLanes: calculatedFaultLanes } = 
-          autoLayoutWithFaultLanes(nodes, edges);
-        
-        setParsedData({
-          nodes: layoutedNodes,
-          edges,
-          metadata,
-          xmlContent: xmlInput, // Store for quality analysis
-        });
-        setFaultLanes(calculatedFaultLanes);
-      } else {
-        setParsedData({ nodes, edges, metadata, xmlContent: xmlInput });
-        setFaultLanes(new Map());
+    setIsLoading(true);
+    // Use setTimeout to allow UI to update and show loading state
+    const timer = setTimeout(() => {
+      try {
+        const { nodes, edges, metadata } = parseFlowXML(xmlInput);
+  
+        if (autoLayoutEnabled && nodes.length > 0) {
+          // Use the enhanced layout function that also returns fault lane info
+          const { nodes: layoutedNodes, faultLanes: calculatedFaultLanes } = 
+            autoLayoutWithFaultLanes(nodes, edges);
+          
+          setParsedData({
+            nodes: layoutedNodes,
+            edges,
+            metadata,
+            xmlContent: xmlInput, // Store for quality analysis
+          });
+          setFaultLanes(calculatedFaultLanes);
+        } else {
+          setParsedData({ nodes, edges, metadata, xmlContent: xmlInput });
+          setFaultLanes(new Map());
+        }
+  
+        setError(null);
+      } catch (err) {
+        console.error("Parse error:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        // Keep previous valid data on error
+      } finally {
+        setIsLoading(false);
       }
+    }, 10);
 
-      setError(null);
-    } catch (err) {
-      console.error("Parse error:", err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-      // Keep previous valid data on error
-    }
+    return () => clearTimeout(timer);
   }, [xmlInput, autoLayoutEnabled]);
 
   // Compute GoTo target counts
@@ -182,6 +194,7 @@ export function useFlowParser(
     goToTargetCounts,
     faultLanes,
     error,
+    isLoading,
   };
 }
 

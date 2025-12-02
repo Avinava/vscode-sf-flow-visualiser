@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from "react"
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
 import { FlowCanvas, CanvasToolbar, Sidebar, Minimap } from "./components";
+import { ErrorBoundary, EmptyState, LoadingOverlay } from "./components";
 
 // Import custom hooks
 import {
@@ -108,6 +109,7 @@ const AppContent: React.FC = () => {
     goToTargetCounts,
     faultLanes,
     fileName,
+    isLoading,
   } = useFlowParser();
 
   // Compute visibility based on collapsed nodes
@@ -392,7 +394,13 @@ const AppContent: React.FC = () => {
       />
 
       {/* MAIN CONTENT */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Loading Overlay */}
+        {isLoading && <LoadingOverlay message="Analyzing flow..." />}
+        
+        {/* Empty State */}
+        {!isLoading && visibleNodes.length === 0 && <EmptyState />}
+
         {/* SIDEBAR */}
         <Sidebar
           isOpen={sidebarOpen}
@@ -481,7 +489,9 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <CollapseProvider>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </CollapseProvider>
     </ThemeProvider>
   );
