@@ -9,16 +9,9 @@
  */
 
 import type { FlowNode, FlowEdge, LayoutConfig } from "../types";
-import {
-  createIncomingMap,
-  createNodeMap,
-  createOutgoingMap,
-} from "./layoutHelpers";
+import { createIncomingMap, createNodeMap, createOutgoingMap } from "./layoutHelpers";
 import { findMergePointForBranches } from "./mergePointFinder";
-import {
-  calculateBranchDepth,
-  calculateSubtreeWidth,
-} from "./branchCalculator";
+import { calculateBranchDepth, calculateSubtreeWidth } from "./branchCalculator";
 import { getBranchEdgesForNode, sortBranchEdges } from "../utils/graph";
 import { DEFAULT_LAYOUT_CONFIG } from "./layoutConfig";
 import { FAULT_LANE_CLEARANCE } from "../constants/dimensions";
@@ -66,17 +59,13 @@ export class TreeLayoutEngine {
   private maxFaultX: number;
   private contentMaxRight: number;
   private faultTargetPositioned: Set<string>;
-  
+
   // New: Global fault lane tracking (Salesforce pattern)
   private faultLanes: Map<string, FaultLaneInfo>; // edgeId -> lane info
   private faultLaneBaseX: number; // Base X position for the fault lane area
   private allEdges: FlowEdge[]; // Keep reference to all edges for lane calculation
 
-  constructor(
-    nodes: FlowNode[],
-    edges: FlowEdge[],
-    options: AutoLayoutOptions = {}
-  ) {
+  constructor(nodes: FlowNode[], edges: FlowEdge[], options: AutoLayoutOptions = {}) {
     this.config = options.config || DEFAULT_LAYOUT_CONFIG;
     this.nodeMap = createNodeMap(nodes);
     this.outgoing = createOutgoingMap(edges);
@@ -86,99 +75,94 @@ export class TreeLayoutEngine {
     this.maxFaultX = this.config.start.x + this.getColWidth();
     this.contentMaxRight = this.config.start.x + this.config.node.width / 2;
     this.faultTargetPositioned = new Set();
-    
+
     // Initialize global fault lane tracking
     this.faultLanes = new Map();
     this.faultLaneBaseX = this.config.start.x + this.config.node.width / 2 + FAULT_LANE_CLEARANCE;
     this.allEdges = edges;
-    
+
     // Pre-calculate fault lanes based on flow traversal order
     this.preCalculateFaultLanesInFlowOrder();
   }
-  
+
   /**
    * Pre-calculate fault lane assignments based on flow traversal order
    * This walks the flow in the same order as layout, ensuring faults encountered
    * earlier in the flow get lower lane indices (closer to the main content)
-   * 
+   *
    * The algorithm also considers Y-range overlaps to prevent crossovers:
    * When two fault paths have overlapping Y ranges, they are assigned to
    * different lanes in a way that prevents crossing.
    */
   private preCalculateFaultLanesInFlowOrder(): void {
-    const faultEdges = this.allEdges.filter(
-      e => e.type === "fault" || e.type === "fault-end"
-    );
-    
+    const faultEdges = this.allEdges.filter((e) => e.type === "fault" || e.type === "fault-end");
+
     if (faultEdges.length === 0) return;
-    
+
     // Build a map of source nodes to their fault edges
     const faultEdgesBySource = new Map<string, FlowEdge[]>();
-    faultEdges.forEach(edge => {
+    faultEdges.forEach((edge) => {
       const list = faultEdgesBySource.get(edge.source) || [];
       list.push(edge);
       faultEdgesBySource.set(edge.source, list);
     });
-    
+
     // Traverse the flow in order to collect faults in traversal order
     // Also track the traversal index for each node
     const orderedFaultEdges: FlowEdge[] = [];
     const visited = new Set<string>();
     const traversalOrder = new Map<string, number>();
     let traversalIndex = 0;
-    
+
     const collectFaultsInOrder = (nodeId: string) => {
       if (!nodeId || visited.has(nodeId)) return;
       visited.add(nodeId);
       traversalOrder.set(nodeId, traversalIndex++);
-      
+
       // Collect any fault edges from this node (in traversal order)
       const nodeFaults = faultEdgesBySource.get(nodeId);
       if (nodeFaults) {
         orderedFaultEdges.push(...nodeFaults);
       }
-      
+
       // Continue traversal through non-fault edges
       const outs = this.outgoing.get(nodeId) || [];
-      const nonFaultOuts = outs.filter(
-        e => e.type !== "fault" && e.type !== "fault-end"
-      );
-      
+      const nonFaultOuts = outs.filter((e) => e.type !== "fault" && e.type !== "fault-end");
+
       // Handle branching nodes - traverse branches in order
       const node = this.nodeMap.get(nodeId);
-      if (node && (node.type === "DECISION" || node.type === "WAIT" || 
-          (node.type === "START" && nonFaultOuts.length > 1))) {
+      if (node && (node.type === "DECISION" || node.type === "WAIT" || (node.type === "START" && nonFaultOuts.length > 1))) {
         // For branching nodes, traverse branches left to right
         const sortedOuts = sortBranchEdges(node, nonFaultOuts);
-        sortedOuts.forEach(edge => collectFaultsInOrder(edge.target));
+        sortedOuts.forEach((edge) => collectFaultsInOrder(edge.target));
       } else if (node && node.type === "LOOP") {
         // For loops, traverse loop body first, then next
-        const loopBody = nonFaultOuts.find(e => e.type === "loop-next");
-        const loopEnd = nonFaultOuts.find(e => e.type === "loop-end" || e.type !== "loop-next");
+        const loopBody = nonFaultOuts.find((e) => e.type === "loop-next");
+        const loopEnd = nonFaultOuts.find((e) => e.type === "loop-end" || e.type !== "loop-next");
         if (loopBody) collectFaultsInOrder(loopBody.target);
         if (loopEnd) collectFaultsInOrder(loopEnd.target);
       } else {
         // Linear traversal
-        nonFaultOuts.forEach(edge => collectFaultsInOrder(edge.target));
+        nonFaultOuts.forEach((edge) => collectFaultsInOrder(edge.target));
       }
     };
-    
+
     // Start traversal from START_NODE
     collectFaultsInOrder("START_NODE");
-    
+
     // Now assign lanes using a greedy interval scheduling approach
     // to avoid crossovers when Y ranges overlap
-    
+
     // First, compute preliminary traversal indices for each fault edge
     interface FaultEdgeInfo {
       edge: FlowEdge;
-      sourceIndex: number;  // Traversal order of source
-      targetIndex: number;  // Traversal order of target (or Infinity if not in main flow)
-      minIndex: number;     // Earlier of source/target
-      maxIndex: number;     // Later of source/target
+      sourceIndex: number; // Traversal order of source
+      targetIndex: number; // Traversal order of target (or Infinity if not in main flow)
+      minIndex: number; // Earlier of source/target
+      maxIndex: number; // Later of source/target
     }
-    
-    const faultInfos: FaultEdgeInfo[] = orderedFaultEdges.map(edge => {
+
+    const faultInfos: FaultEdgeInfo[] = orderedFaultEdges.map((edge) => {
       const srcIdx = traversalOrder.get(edge.source) ?? 0;
       const tgtIdx = traversalOrder.get(edge.target) ?? Infinity;
       return {
@@ -189,14 +173,14 @@ export class TreeLayoutEngine {
         maxIndex: Math.max(srcIdx, tgtIdx),
       };
     });
-    
+
     // Sort by source index (flow order) - this is our primary ordering
     faultInfos.sort((a, b) => a.sourceIndex - b.sourceIndex);
-    
+
     // Assign lanes to avoid overlaps
     // lanes[i] contains the maxIndex of the fault currently using lane i
     const lanes: number[] = [];
-    
+
     faultInfos.forEach((info, _i) => {
       // Find the first lane where this fault won't overlap with existing faults
       // A fault can use a lane if its minIndex > lane's current maxIndex
@@ -209,16 +193,16 @@ export class TreeLayoutEngine {
           break;
         }
       }
-      
+
       if (assignedLane === -1) {
         // Need a new lane
         assignedLane = lanes.length;
         lanes.push(info.maxIndex);
       }
-      
+
       const laneOffset = assignedLane * 40; // 40px spacing between fault lanes
       const laneX = this.faultLaneBaseX + laneOffset;
-      
+
       this.faultLanes.set(info.edge.id, {
         edgeId: info.edge.id,
         sourceId: info.edge.source,
@@ -230,14 +214,14 @@ export class TreeLayoutEngine {
       });
     });
   }
-  
+
   /**
    * Get the fault lane info for an edge
    */
   getFaultLaneInfo(edgeId: string): FaultLaneInfo | undefined {
     return this.faultLanes.get(edgeId);
   }
-  
+
   /**
    * Get all fault lane assignments
    */
@@ -264,17 +248,9 @@ export class TreeLayoutEngine {
     nodes.forEach((node) => {
       if (node.type === "START") return;
       const incomingEdges = this.incoming.get(node.id) || [];
-      if (
-        incomingEdges.length > 0 &&
-        incomingEdges.every(
-          (edge) => edge.type === "fault" || edge.type === "fault-end"
-        )
-      ) {
+      if (incomingEdges.length > 0 && incomingEdges.every((edge) => edge.type === "fault" || edge.type === "fault-end")) {
         result.add(node.id);
-      } else if (
-        incomingEdges.length === 0 &&
-        node.data?.isFaultPath === true
-      ) {
+      } else if (incomingEdges.length === 0 && node.data?.isFaultPath === true) {
         // End nodes generated for fault paths won't have incoming edges yet
         result.add(node.id);
       }
@@ -296,9 +272,7 @@ export class TreeLayoutEngine {
   /**
    * Layout all nodes starting from the start node
    */
-  layout(
-    startNodeId: string = "START_NODE"
-  ): Map<string, { x: number; y: number }> {
+  layout(startNodeId: string = "START_NODE"): Map<string, { x: number; y: number }> {
     this.layoutNode(startNodeId, this.config.start.x, this.config.start.y);
 
     // Handle orphaned nodes
@@ -310,13 +284,7 @@ export class TreeLayoutEngine {
   /**
    * Recursively layout nodes starting from nodeId
    */
-  private layoutNode(
-    nodeId: string,
-    centerX: number,
-    currentY: number,
-    stopAt?: string,
-    localVisited = new Set<string>()
-  ): number {
+  private layoutNode(nodeId: string, centerX: number, currentY: number, stopAt?: string, localVisited = new Set<string>()): number {
     if (!nodeId || localVisited.has(nodeId)) return currentY;
     if (stopAt && nodeId === stopAt) return currentY;
 
@@ -338,9 +306,7 @@ export class TreeLayoutEngine {
     const nextY = currentY + nodeHeight + this.config.grid.vGap + extraGap;
 
     // Filter outgoing edges to non-fault
-    const nonFaultOuts = outs.filter(
-      (e) => e.type !== "fault" && e.type !== "fault-end"
-    );
+    const nonFaultOuts = outs.filter((e) => e.type !== "fault" && e.type !== "fault-end");
 
     // Handle fault paths
     this.layoutFaultPaths(nodeId, centerX, currentY, nodeHeight, localVisited);
@@ -348,50 +314,20 @@ export class TreeLayoutEngine {
     if (nonFaultOuts.length === 0) return nextY;
 
     // Route to appropriate layout method based on node type
-    return this.layoutByNodeType(
-      node,
-      nonFaultOuts,
-      centerX,
-      currentY,
-      nextY,
-      stopAt,
-      localVisited
-    );
+    return this.layoutByNodeType(node, nonFaultOuts, centerX, currentY, nextY, stopAt, localVisited);
   }
 
   /**
    * Layout based on node type
    */
-  private layoutByNodeType(
-    node: FlowNode,
-    outs: FlowEdge[],
-    centerX: number,
-    _currentY: number,
-    nextY: number,
-    stopAt?: string,
-    localVisited = new Set<string>()
-  ): number {
+  private layoutByNodeType(node: FlowNode, outs: FlowEdge[], centerX: number, _currentY: number, nextY: number, stopAt?: string, localVisited = new Set<string>()): number {
     const nodeType = node.type;
     const isBranchingStart = nodeType === "START" && outs.length > 1;
 
     if (nodeType === "DECISION" || nodeType === "WAIT" || isBranchingStart) {
-      return this.layoutBranchingNode(
-        node,
-        outs,
-        centerX,
-        nextY,
-        stopAt,
-        localVisited
-      );
+      return this.layoutBranchingNode(node, outs, centerX, nextY, stopAt, localVisited);
     } else if (nodeType === "LOOP") {
-      return this.layoutLoopNode(
-        node,
-        outs,
-        centerX,
-        nextY,
-        stopAt,
-        localVisited
-      );
+      return this.layoutLoopNode(node, outs, centerX, nextY, stopAt, localVisited);
     } else {
       return this.layoutLinearNode(outs, centerX, nextY, stopAt, localVisited);
     }
@@ -399,49 +335,52 @@ export class TreeLayoutEngine {
 
   /**
    * Layout a branching node (Decision, Wait, or Start with multiple paths)
+   *
+   * Based on Salesforce's De() function in autoLayoutCanvas.js:
+   * - Branches are spread symmetrically around the parent's center
+   * - Uses a centering algorithm to handle asymmetric branch widths
+   * - Merge point is positioned at the center of the branch spread
    */
-  private layoutBranchingNode(
-    node: FlowNode,
-    outs: FlowEdge[],
-    centerX: number,
-    nextY: number,
-    stopAt?: string,
-    localVisited = new Set<string>()
-  ): number {
-    const branchEdges = sortBranchEdges(
-      node,
-      getBranchEdgesForNode(node, outs)
-    );
+  private layoutBranchingNode(node: FlowNode, outs: FlowEdge[], centerX: number, nextY: number, stopAt?: string, localVisited = new Set<string>()): number {
+    const branchEdges = sortBranchEdges(node, getBranchEdgesForNode(node, outs));
     const branchTargets = branchEdges.map((e) => e.target);
-    const mergePoint = findMergePointForBranches(
-      branchTargets,
-      this.outgoing,
-      this.nodeMap
-    );
+    const mergePoint = findMergePointForBranches(branchTargets, this.outgoing, this.nodeMap);
 
     // Calculate widths of each branch
     const branchWidths = branchEdges.map((e) => {
-      const width = calculateSubtreeWidth(
-        e.target,
-        this.nodeMap,
-        this.outgoing,
-        mergePoint,
-        new Set(localVisited)
-      );
+      const width = calculateSubtreeWidth(e.target, this.nodeMap, this.outgoing, mergePoint, new Set(localVisited));
       return Math.max(width, 1);
     });
-    const totalWidth = branchWidths.reduce((a, b) => a + b, 0);
 
-    // Position branches spread outward from parent's center
     const colWidth = this.getColWidth();
-    let currentX = centerX - (totalWidth * colWidth) / 2 + colWidth / 2;
+
+    // Calculate branch positions using Salesforce's centering approach:
+    // Each branch gets a center position, then we calculate the offset needed
+    // to center the entire spread around the parent node
+    const branchPositions: Array<{ centerX: number; width: number }> = [];
+    let runningX = 0;
+
+    branchWidths.forEach((width) => {
+      // Calculate the center X for this branch within the running total
+      const branchCenterX = runningX + (width * colWidth) / 2;
+      branchPositions.push({ centerX: branchCenterX, width });
+      runningX += width * colWidth;
+    });
+
+    // Calculate the center offset to align the branch spread around parent's centerX
+    // This uses the midpoint between first and last branch centers
+    const firstBranchCenter = branchPositions[0]?.centerX ?? 0;
+    const lastBranchCenter = branchPositions[branchPositions.length - 1]?.centerX ?? 0;
+    const branchSpreadMidpoint = (firstBranchCenter + lastBranchCenter) / 2;
+    const offsetX = centerX - branchSpreadMidpoint;
+
+    // Apply offset to get final positions
     let maxBranchDepth = 0;
     let firstBranchCenterX = centerX;
     let lastBranchCenterX = centerX;
 
     branchEdges.forEach((edge, idx) => {
-      const branchWidth = branchWidths[idx];
-      const branchCenterX = currentX + ((branchWidth - 1) * colWidth) / 2;
+      const branchCenterX = branchPositions[idx].centerX + offsetX;
 
       if (idx === 0) firstBranchCenterX = branchCenterX;
       lastBranchCenterX = branchCenterX;
@@ -449,33 +388,18 @@ export class TreeLayoutEngine {
       const goesDirectlyToMerge = edge.target === mergePoint;
 
       if (!goesDirectlyToMerge && !localVisited.has(edge.target)) {
-        this.layoutNode(
-          edge.target,
-          branchCenterX,
-          nextY,
-          mergePoint,
-          new Set(localVisited)
-        );
+        this.layoutNode(edge.target, branchCenterX, nextY, mergePoint, new Set(localVisited));
       }
 
-      const branchDepth = calculateBranchDepth(
-        edge.target,
-        this.nodeMap,
-        this.outgoing,
-        mergePoint,
-        new Set(localVisited)
-      );
+      const branchDepth = calculateBranchDepth(edge.target, this.nodeMap, this.outgoing, mergePoint, new Set(localVisited));
       maxBranchDepth = Math.max(maxBranchDepth, branchDepth);
-
-      currentX += branchWidth * colWidth;
     });
 
-    // Position merge point centered between all branches
+    // Position merge point centered between first and last branch
+    // This matches Salesforce's approach where merge point aligns with the midpoint
     if (mergePoint && !localVisited.has(mergePoint)) {
       const mergeCenterX = (firstBranchCenterX + lastBranchCenterX) / 2;
-      const mergeY =
-        nextY +
-        maxBranchDepth * (this.config.node.height + this.config.grid.vGap);
+      const mergeY = nextY + maxBranchDepth * (this.config.node.height + this.config.grid.vGap);
       this.layoutNode(mergePoint, mergeCenterX, mergeY, stopAt, localVisited);
     }
 
@@ -485,64 +409,27 @@ export class TreeLayoutEngine {
   /**
    * Layout a loop node
    */
-  private layoutLoopNode(
-    node: FlowNode,
-    outs: FlowEdge[],
-    centerX: number,
-    nextY: number,
-    stopAt?: string,
-    localVisited = new Set<string>()
-  ): number {
+  private layoutLoopNode(node: FlowNode, outs: FlowEdge[], centerX: number, nextY: number, stopAt?: string, localVisited = new Set<string>()): number {
     const forEachEdge = outs.find((e) => e.type === "loop-next");
     const afterLastEdge = outs.find((e) => e.type === "loop-end");
 
-    const loopBodyWidth = forEachEdge
-      ? calculateSubtreeWidth(
-          forEachEdge.target,
-          this.nodeMap,
-          this.outgoing,
-          node.id,
-          new Set(localVisited)
-        )
-      : 1;
+    const loopBodyWidth = forEachEdge ? calculateSubtreeWidth(forEachEdge.target, this.nodeMap, this.outgoing, node.id, new Set(localVisited)) : 1;
 
     const colWidth = this.getColWidth();
 
     // Position "For Each" branch to the left
     if (forEachEdge && !localVisited.has(forEachEdge.target)) {
       const loopBodyX = centerX - colWidth * (loopBodyWidth / 2 + 0.5);
-      this.layoutNode(
-        forEachEdge.target,
-        loopBodyX,
-        nextY,
-        node.id,
-        new Set(localVisited)
-      );
+      this.layoutNode(forEachEdge.target, loopBodyX, nextY, node.id, new Set(localVisited));
     }
 
     // Calculate loop body depth for "After Last" positioning
-    const loopBodyDepth = forEachEdge
-      ? calculateBranchDepth(
-          forEachEdge.target,
-          this.nodeMap,
-          this.outgoing,
-          node.id,
-          new Set(localVisited)
-        )
-      : 1;
+    const loopBodyDepth = forEachEdge ? calculateBranchDepth(forEachEdge.target, this.nodeMap, this.outgoing, node.id, new Set(localVisited)) : 1;
 
     // Position "After Last" below the loop
     if (afterLastEdge && !localVisited.has(afterLastEdge.target)) {
-      const afterLoopY =
-        nextY +
-        loopBodyDepth * (this.config.node.height + this.config.grid.vGap);
-      this.layoutNode(
-        afterLastEdge.target,
-        centerX,
-        afterLoopY,
-        stopAt,
-        localVisited
-      );
+      const afterLoopY = nextY + loopBodyDepth * (this.config.node.height + this.config.grid.vGap);
+      this.layoutNode(afterLastEdge.target, centerX, afterLoopY, stopAt, localVisited);
     }
 
     return nextY;
@@ -551,23 +438,11 @@ export class TreeLayoutEngine {
   /**
    * Layout a linear (non-branching) node
    */
-  private layoutLinearNode(
-    outs: FlowEdge[],
-    centerX: number,
-    nextY: number,
-    stopAt?: string,
-    localVisited = new Set<string>()
-  ): number {
+  private layoutLinearNode(outs: FlowEdge[], centerX: number, nextY: number, stopAt?: string, localVisited = new Set<string>()): number {
     let lastY = nextY;
     outs.forEach((edge) => {
       if (!localVisited.has(edge.target)) {
-        lastY = this.layoutNode(
-          edge.target,
-          centerX,
-          nextY,
-          stopAt,
-          localVisited
-        );
+        lastY = this.layoutNode(edge.target, centerX, nextY, stopAt, localVisited);
       }
     });
     return lastY;
@@ -575,18 +450,16 @@ export class TreeLayoutEngine {
 
   /**
    * Layout fault paths to the right of the node using dedicated lanes
-   * Based on Salesforce's fault path layout pattern
+   *
+   * Based on Salesforce's fault path layout pattern from autoLayoutCanvas.js:
+   * - Faults are positioned in a completely SEPARATE lane from the main flow
+   * - They do NOT contribute to width calculations of the main tree
+   * - Each fault gets its own global lane index to prevent crossovers
+   * - Fault-end nodes (END nodes for fault paths) are positioned at the same Y
+   *   level as their source for a clean horizontal connector
    */
-  private layoutFaultPaths(
-    nodeId: string,
-    centerX: number,
-    currentY: number,
-    nodeHeight: number,
-    localVisited: Set<string>
-  ): void {
-    const faultOuts = (this.outgoing.get(nodeId) || []).filter(
-      (e) => e.type === "fault" || e.type === "fault-end"
-    );
+  private layoutFaultPaths(nodeId: string, centerX: number, currentY: number, nodeHeight: number, localVisited: Set<string>): void {
+    const faultOuts = (this.outgoing.get(nodeId) || []).filter((e) => e.type === "fault" || e.type === "fault-end");
 
     if (faultOuts.length === 0) return;
 
@@ -596,14 +469,10 @@ export class TreeLayoutEngine {
     faultOuts.forEach((edge) => {
       const targetNode = this.nodeMap.get(edge.target);
       const targetWidth = targetNode?.width || this.config.node.width;
-      const isFaultEnd =
-        edge.type === "fault-end" || targetNode?.type === "END";
+      const isFaultEnd = edge.type === "fault-end" || targetNode?.type === "END";
 
       const incomingEdges = this.incoming.get(edge.target) || [];
-      const hasNonFaultIncoming = incomingEdges.some(
-        (incomingEdge) =>
-          incomingEdge.type !== "fault" && incomingEdge.type !== "fault-end"
-      );
+      const hasNonFaultIncoming = incomingEdges.some((incomingEdge) => incomingEdge.type !== "fault" && incomingEdge.type !== "fault-end");
 
       // Allow GoTo connectors to rely on the regular layout when the target is
       // already part of the primary path.
@@ -617,22 +486,27 @@ export class TreeLayoutEngine {
       // Get the pre-calculated fault lane for this edge
       const faultLaneInfo = this.faultLanes.get(edge.id);
       let laneCenterX: number;
-      
+
       if (faultLaneInfo) {
         // Use the pre-calculated lane position
+        // The lane is calculated based on flow traversal order to prevent crossovers
         laneCenterX = faultLaneInfo.laneX + targetWidth / 2;
-        
-        // Ensure the lane is far enough from the main content
-        const minLaneX = Math.max(
-          sourceRight + FAULT_LANE_CLEARANCE + targetWidth / 2,
-          this.contentMaxRight + FAULT_LANE_CLEARANCE + targetWidth / 2
-        );
+
+        // Ensure the lane is far enough from BOTH:
+        // 1. The source node's right edge
+        // 2. The rightmost non-fault content in the entire flow
+        // This ensures faults don't affect the main tree's symmetry
+        const minLaneFromSource = sourceRight + FAULT_LANE_CLEARANCE + targetWidth / 2;
+        const minLaneFromContent = this.contentMaxRight + FAULT_LANE_CLEARANCE + targetWidth / 2;
+        const minLaneX = Math.max(minLaneFromSource, minLaneFromContent);
+
         laneCenterX = Math.max(laneCenterX, minLaneX);
-        
-        // Update the lane info with the final position
+
+        // Update the lane info with the final position for connector rendering
         faultLaneInfo.laneX = laneCenterX - targetWidth / 2;
       } else {
         // Fallback for edges not in the pre-calculated map
+        // Use a consistent calculation based on content area + clearance
         const faultLaneGap = this.getFaultLaneGap();
         const laneFromSource = sourceRight + faultLaneGap + targetWidth / 2;
         const laneFromContent = this.contentMaxRight + faultLaneGap + targetWidth / 2;
@@ -641,6 +515,7 @@ export class TreeLayoutEngine {
 
       if (isFaultEnd) {
         // Position END node at same Y level for straight horizontal line
+        // This matches Salesforce's pattern where fault-end connectors are purely horizontal
         const srcCenterY = currentY + nodeHeight / 2;
         const endNodeHeight = 40;
         const endNodeY = srcCenterY - endNodeHeight / 2;
@@ -652,20 +527,15 @@ export class TreeLayoutEngine {
         // Regular fault path target
         this.faultTargetPositioned.add(edge.target);
 
-        const dropOffset = this.faultOnlyNodes.has(edge.target)
-          ? nodeHeight + this.config.grid.vGap
-          : 0;
+        // Position fault target below the source, with an offset if it's a fault-only node
+        const dropOffset = this.faultOnlyNodes.has(edge.target) ? nodeHeight + this.config.grid.vGap : 0;
         const targetY = currentY + dropOffset;
 
-        this.layoutNode(
-          edge.target,
-          laneCenterX,
-          targetY,
-          undefined,
-          new Set(localVisited)
-        );
+        this.layoutNode(edge.target, laneCenterX, targetY, undefined, new Set(localVisited));
       }
 
+      // Track the maximum fault X position for subsequent fault layouts
+      // This ensures fault lanes don't overlap
       this.maxFaultX = Math.max(this.maxFaultX, laneCenterX + targetWidth / 2);
     });
   }
@@ -696,11 +566,7 @@ export class TreeLayoutEngine {
  *
  * This is the main entry point for layout calculation.
  */
-export function autoLayout(
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  options: AutoLayoutOptions = {}
-): FlowNode[] {
+export function autoLayout(nodes: FlowNode[], edges: FlowEdge[], options: AutoLayoutOptions = {}): FlowNode[] {
   if (nodes.length === 0) return nodes;
 
   const startNodeId = options.startNodeId || "START_NODE";
@@ -721,11 +587,7 @@ export function autoLayout(
  * Extended auto-layout that also returns fault lane information
  * for use in edge rendering
  */
-export function autoLayoutWithFaultLanes(
-  nodes: FlowNode[],
-  edges: FlowEdge[],
-  options: AutoLayoutOptions = {}
-): { nodes: FlowNode[]; faultLanes: Map<string, FaultLaneInfo> } {
+export function autoLayoutWithFaultLanes(nodes: FlowNode[], edges: FlowEdge[], options: AutoLayoutOptions = {}): { nodes: FlowNode[]; faultLanes: Map<string, FaultLaneInfo> } {
   if (nodes.length === 0) return { nodes, faultLanes: new Map() };
 
   const startNodeId = options.startNodeId || "START_NODE";
@@ -744,8 +606,8 @@ export function autoLayoutWithFaultLanes(
 
   // Update fault lane info with actual node positions
   faultLanes.forEach((lane) => {
-    const srcNode = layoutedNodes.find(n => n.id === lane.sourceId);
-    const tgtNode = layoutedNodes.find(n => n.id === lane.targetId);
+    const srcNode = layoutedNodes.find((n) => n.id === lane.sourceId);
+    const tgtNode = layoutedNodes.find((n) => n.id === lane.targetId);
     if (srcNode) {
       lane.sourceY = srcNode.y + srcNode.height / 2;
     }
