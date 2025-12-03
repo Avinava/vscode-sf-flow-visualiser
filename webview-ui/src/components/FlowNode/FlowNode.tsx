@@ -11,9 +11,10 @@
  */
 
 import React from "react";
-import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, ShieldAlert, Info } from "lucide-react";
 import type { FlowNode as FlowNodeType, NodeTypeConfig } from "../../types";
 import { NODE_CONFIG } from "../../constants";
+import { Tooltip } from "../Tooltip";
 
 // ============================================================================
 // TYPES
@@ -121,6 +122,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
   };
 
   const badgeStyle = getBadgeStyle();
+  const hasDescription = !!node.data.description;
 
   // Special rendering for END nodes
   if (node.type === "END") {
@@ -141,11 +143,20 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           <div
             className={`
               w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
-              shadow transition-all
+              shadow transition-all relative
               ${isSelected ? "ring-3 ring-red-200 dark:ring-red-900" : "hover:shadow-md"}
             `}
           >
             <config.icon size={12} className="text-white" fill="white" />
+            
+            {/* Description Indicator for End Node */}
+            {hasDescription && (
+              <Tooltip content={node.data.description} maxWidth={200} side="top">
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800">
+                  <Info size={8} />
+                </div>
+              </Tooltip>
+            )}
           </div>
 
           {/* Label */}
@@ -180,11 +191,20 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         <div
           className={`
             w-8 h-8 rounded-full bg-red-500 flex items-center justify-center cursor-pointer
-            shadow transition-all
+            shadow transition-all relative
             ${isSelected ? "ring-3 ring-red-200 dark:ring-red-900" : "hover:shadow-md"}
           `}
         >
           <config.icon size={12} className="text-white" fill="white" />
+          
+          {/* Description Indicator for End Node */}
+          {hasDescription && (
+            <Tooltip content={node.data.description} maxWidth={200} side="right">
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800">
+                <Info size={8} />
+              </div>
+            </Tooltip>
+          )}
         </div>
 
         {/* Label */}
@@ -220,7 +240,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         {/* Node card - Salesforce style */}
         <div
           className={`
-            rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all
+            rounded-lg border shadow-sm cursor-pointer overflow-hidden transition-all relative
             ${isSelected
               ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
               : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
@@ -228,6 +248,17 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             bg-white dark:bg-slate-800
           `}
         >
+          {/* Description Indicator */}
+          {hasDescription && (
+            <div className="absolute top-2 right-2 z-10">
+              <Tooltip content={node.data.description} maxWidth={240} side="left">
+                <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 flex items-center justify-center transition-colors">
+                  <Info size={10} />
+                </div>
+              </Tooltip>
+            </div>
+          )}
+
           {/* Main node header - Salesforce style with circular icon */}
           <div className="flex items-center p-3 gap-3">
             {/* Circular icon like Salesforce */}
@@ -238,7 +269,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
               <config.icon size={20} className="text-white" />
             </div>
             {/* Title and subtitle */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-4">
               <div
                 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
                 title={node.label}
@@ -349,7 +380,18 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           </div>
         )}
 
-        <div className="flex items-stretch">
+        <div className="flex items-stretch relative">
+          {/* Description Indicator - Integrated inside top-right of content area */}
+          {hasDescription && (
+            <div className="absolute top-1.5 right-1.5 z-10">
+              <Tooltip content={node.data.description} maxWidth={240} side="top">
+                <div className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                  <Info size={12} />
+                </div>
+              </Tooltip>
+            </div>
+          )}
+
           {/* Icon - diamond shape for DECISION/WAIT nodes */}
           {node.type === "DECISION" || node.type === "WAIT" ? (
             <div className="w-12 flex items-center justify-center flex-shrink-0 py-2">
@@ -373,7 +415,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
           )}
 
           {/* Content */}
-          <div className="flex-1 px-3 py-2 min-w-0">
+          <div className="flex-1 px-3 py-2 min-w-0 pr-6"> {/* Added pr-6 to make room for info icon */}
             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
               {config.label}
             </div>

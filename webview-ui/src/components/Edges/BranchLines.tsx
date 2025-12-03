@@ -8,8 +8,8 @@
 import React from "react";
 import type { FlowNode, FlowEdge } from "../../types";
 import {
-  NODE_WIDTH,
-  GRID_H_GAP,
+  // NODE_WIDTH,
+  // GRID_H_GAP,
   CONNECTOR_COLORS,
   CONNECTOR_WIDTHS,
 } from "../../constants";
@@ -21,7 +21,8 @@ import {
 import { ConnectorPathService } from "../../services";
 import { EdgeLabel } from "./EdgeLabel";
 
-const COL_WIDTH = NODE_WIDTH + GRID_H_GAP;
+// COL_WIDTH is no longer needed as we use dynamic target positioning
+// const COL_WIDTH = NODE_WIDTH + GRID_H_GAP;
 
 export interface BranchLineInfo {
   sourceId: string;
@@ -81,26 +82,32 @@ export function calculateBranchLines(
       return;
     }
 
-    const srcCenterX = srcNode.x + srcNode.width / 2;
     const srcBottomY = srcNode.y + srcNode.height;
     // Extra offset for START nodes with scheduled paths (they need more room for labels)
     const branchOffset = srcNode.type === "START" ? 55 : 45;
     const branchLineY = srcBottomY + branchOffset;
 
     // Calculate branch spread positions
-    const numBranches = branchEdges.length;
-    const totalWidth = numBranches * COL_WIDTH;
-    const startX = srcCenterX - totalWidth / 2 + COL_WIDTH / 2;
+    // Calculate branch spread positions
+    // numBranches is no longer needed
+    // const numBranches = branchEdges.length;
+    // startX is no longer needed as we use targetX directly
+    // const startX = srcCenterX - totalWidth / 2 + COL_WIDTH / 2;
 
     const branches = branchEdges
-      .map((edge, idx) => {
+      .map((edge) => {
         const tgt = nodeMap.get(edge.target);
         if (!tgt) return null;
 
+        // Use target's center X for the branch drop point
+        // This ensures the vertical drop line is perfectly straight
+        // The horizontal branch line will naturally expand to cover the full width
+        const targetX = tgt.x + tgt.width / 2;
+        
         return {
           edge,
-          branchX: startX + idx * COL_WIDTH,
-          targetX: tgt.x + tgt.width / 2,
+          branchX: targetX,
+          targetX: targetX,
           targetY: tgt.y,
         };
       })

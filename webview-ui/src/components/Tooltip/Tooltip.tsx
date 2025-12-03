@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 export interface TooltipProps {
-  content: string;
+  content: React.ReactNode;
   children: React.ReactElement;
   side?: "top" | "bottom" | "left" | "right";
   offset?: number;
   delay?: number;
+  maxWidth?: number | string;
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({
@@ -15,6 +16,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   side = "bottom",
   offset = 8,
   delay = 300,
+  maxWidth,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -126,7 +128,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
                   : "translate(0, -50%)",
             }}
           >
-            <div className="px-2 py-1 text-xs font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 duration-100 relative">
+            <div 
+              className={`px-2 py-1 text-xs font-medium text-white bg-slate-800 dark:bg-slate-700 rounded shadow-lg animate-in fade-in zoom-in-95 duration-100 relative ${!maxWidth ? 'whitespace-nowrap' : ''}`}
+              style={{ maxWidth: maxWidth }}
+            >
               {content}
               {/* Arrow */}
               <div
