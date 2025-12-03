@@ -355,12 +355,12 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
       {/* Node card */}
       <div
         className={`
-          rounded-lg border shadow-sm cursor-pointer overflow-visible transition-all relative
+          rounded-md border shadow-sm hover:shadow-md cursor-pointer overflow-visible transition-all duration-200 ease-out relative group
           ${isSelected
-            ? "border-blue-500 shadow-lg ring-2 ring-blue-200 dark:ring-blue-900"
+            ? "border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/50"
             : isCollapsed
-              ? "border-amber-400 dark:border-amber-600 shadow-md collapsed-blink"
-              : "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500 hover:shadow-md"
+              ? "border-amber-400 dark:border-amber-600 collapsed-blink"
+              : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700"
           }
           ${isCollapsed ? "bg-amber-50 dark:bg-amber-950/30" : "bg-white dark:bg-slate-800"}
         `}
@@ -368,7 +368,7 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         {/* Violation badge - integrated into top-right corner */}
         {violations.length > 0 && (
           <div
-            className={`absolute -top-2 -right-2 px-1.5 py-1 rounded-full shadow-md cursor-pointer transition-all z-20 flex items-center gap-1 ${badgeStyle.bg} ${badgeStyle.text} hover:scale-110`}
+            className={`absolute -top-2 -right-2 px-1.5 py-1 rounded-full shadow-md cursor-pointer transition-transform duration-200 z-20 flex items-center gap-1 ${badgeStyle.bg} ${badgeStyle.text} hover:scale-110`}
             onClick={(e) => {
               e.stopPropagation();
               onOpenQualityTab?.();
@@ -381,22 +381,11 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
         )}
 
         <div className="flex items-stretch relative">
-          {/* Description Indicator - Integrated inside top-right of content area */}
-          {hasDescription && (
-            <div className="absolute top-1.5 right-1.5 z-10">
-              <Tooltip content={node.data.description} maxWidth={240} side="top">
-                <div className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                  <Info size={12} />
-                </div>
-              </Tooltip>
-            </div>
-          )}
-
           {/* Icon - diamond shape for DECISION/WAIT nodes */}
           {node.type === "DECISION" || node.type === "WAIT" ? (
             <div className="w-12 flex items-center justify-center flex-shrink-0 py-2">
               <div
-                className="w-8 h-8 flex items-center justify-center transform rotate-45 rounded-sm"
+                className="w-8 h-8 flex items-center justify-center transform rotate-45 rounded-sm shadow-sm transition-transform group-hover:scale-105 duration-200"
                 style={{ backgroundColor: config.color }}
               >
                 <config.icon
@@ -407,20 +396,30 @@ export const FlowNodeComponent: React.FC<FlowNodeProps> = ({
             </div>
           ) : (
             <div
-              className="w-12 flex items-center justify-center flex-shrink-0"
+              className="w-12 flex items-center justify-center flex-shrink-0 rounded-l-md"
               style={{ backgroundColor: config.color }}
             >
-              <config.icon size={18} className="text-white" />
+              <config.icon size={18} className="text-white transition-transform group-hover:scale-110 duration-200" />
             </div>
           )}
 
           {/* Content */}
-          <div className="flex-1 px-3 py-2 min-w-0 pr-6"> {/* Added pr-6 to make room for info icon */}
-            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
-              {config.label}
+          <div className="flex-1 px-3 py-2.5 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                {config.label}
+              </span>
+              {/* Description Indicator - Inline with label */}
+              {hasDescription && (
+                <Tooltip content={node.data.description} maxWidth={240} side="top">
+                  <div className="text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors cursor-help">
+                    <Info size={11} strokeWidth={2.5} />
+                  </div>
+                </Tooltip>
+              )}
             </div>
             <div
-              className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate"
+              className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight"
               title={node.label}
             >
               {node.label}
