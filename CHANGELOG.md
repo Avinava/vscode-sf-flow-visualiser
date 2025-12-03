@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.2.0] - 2025-12-03
+ 
+### Added
+ 
+- **Header Redesign**: Completely redesigned flow header with improved quality status visualization and cleaner layout
+- **Tooltips**: Added comprehensive tooltips across the UI for better user guidance
+- **Error Boundary**: Implemented robust error handling with friendly empty states and loading overlays
+- **Scan Results**: Integrated flow quality scan results directly into the header for immediate visibility
+ 
+### Fixed
+ 
+- **Routing Improvements**:
+  - Optimized connector routing for straighter, cleaner lines
+  - Improved fault path routing to prevent visual clutter
+  - Better handling of complex branching scenarios
+- **UI/UX**:
+  - Fixed centering logic to correctly focus on Start Node
+  - Refined node visual style with better shadows and rounded corners
+  - Improved dark mode compatibility
+ 
 ## [1.1.6] - 2025-12-03
 
 ### Fixed

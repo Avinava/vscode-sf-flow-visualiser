@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from "react"
 // Import from modular structure
 import { FlowHeader, EdgeRenderer, FlowNodeComponent } from "./components";
 import { FlowCanvas, CanvasToolbar, Sidebar, Minimap } from "./components";
+import { ErrorBoundary, EmptyState, LoadingOverlay } from "./components";
 
 // Import custom hooks
 import {
@@ -108,6 +109,7 @@ const AppContent: React.FC = () => {
     goToTargetCounts,
     faultLanes,
     fileName,
+    isLoading,
   } = useFlowParser();
 
   // Compute visibility based on collapsed nodes
@@ -362,6 +364,18 @@ const AppContent: React.FC = () => {
 
 
 
+  // Handle node selection and open sidebar
+  const handleNodeSelect = useCallback(
+    (node: FlowNode | null) => {
+      selectNode(node);
+      if (node) {
+        setSidebarOpen(true);
+        setSidebarTab("details");
+      }
+    },
+    [selectNode]
+  );
+
   return (
     <div
       className={`flex flex-col h-screen w-full overflow-hidden font-sans text-sm transition-colors duration-200
@@ -372,10 +386,21 @@ const AppContent: React.FC = () => {
         metadata={parsedData.metadata}
         fileName={fileName}
         complexity={complexityMetrics}
+        qualityMetrics={qualityMetrics}
+        onOpenQualityTab={() => {
+          setSidebarTab("quality");
+          setSidebarOpen(true);
+        }}
       />
 
       {/* MAIN CONTENT */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Loading Overlay */}
+        {isLoading && <LoadingOverlay message="Analyzing flow..." />}
+        
+        {/* Empty State */}
+        {!isLoading && visibleNodes.length === 0 && <EmptyState />}
+
         {/* SIDEBAR */}
         <Sidebar
           isOpen={sidebarOpen}
@@ -433,7 +458,7 @@ const AppContent: React.FC = () => {
                 incomingGoToCount={goToTargetCounts.get(node.id) || 0}
                 isCollapsed={isCollapsed(node.id)}
                 isBranchingNode={branchingNodeIds.has(node.id)}
-                onSelect={selectNode}
+                onSelect={handleNodeSelect}
                 onToggleCollapse={toggleCollapse}
                 violations={violationsByElement.get(node.id) || []}
                 onOpenQualityTab={() => {
@@ -464,7 +489,9 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <CollapseProvider>
-        <AppContent />
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
       </CollapseProvider>
     </ThemeProvider>
   );

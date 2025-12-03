@@ -53,70 +53,87 @@ export class ConnectorPathService {
   /**
    * Create an orthogonal path with rounded corners
    *
+   * Based on Salesforce's connector path generation in autoLayoutCanvas.js
+   * - Uses proper corner radius clamping to prevent overlapping curves
+   * - Ensures fully orthogonal paths (horizontal and vertical segments only)
+   *
    * @param src - Source point
    * @param tgt - Target point
    * @param options - Path options including bend strategy
    */
-  static createOrthogonalPath(
-    src: Point,
-    tgt: Point,
-    options: OrthogonalPathOptions = {}
-  ): string {
-    const {
-      cornerRadius = DEFAULT_CORNER_RADIUS,
-      bendStrategy = "near-target",
-    } = options;
+  static createOrthogonalPath(src: Point, tgt: Point, options: OrthogonalPathOptions = {}): string {
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, bendStrategy = "near-target" } = options;
 
     const dx = tgt.x - src.x;
     const dy = tgt.y - src.y;
 
-    // Straight vertical line if aligned
-    if (Math.abs(dx) < 5) {
+    // Straight vertical line if aligned horizontally (within tolerance)
+    if (Math.abs(dx) < 3) {
       return this.createStraightPath(src, tgt);
     }
 
     const sign = dx > 0 ? 1 : -1;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Clamp corner radius to ensure proper orthogonal corners
+    // The radius must not exceed half the horizontal distance or
+    // leave insufficient room for the vertical segments
+    const maxRadiusForHorizontal = absDx / 2 - 2;
+    const maxRadiusForVertical = absDy / 4 - 2;
+    const r = Math.max(4, Math.min(cornerRadius, maxRadiusForHorizontal, maxRadiusForVertical));
 
     // Determine bend Y position based on strategy
     let bendY: number;
 
     if (bendStrategy === "near-source") {
-      bendY = src.y + Math.min(40, dy / 4);
+      bendY = src.y + Math.min(40, absDy / 4);
     } else if (bendStrategy === "midpoint") {
       bendY = src.y + dy / 2;
     } else {
       // "near-target" - default
-      bendY = tgt.y - Math.min(35, dy / 4);
+      bendY = tgt.y - Math.min(35, absDy / 4);
     }
 
-    // Ensure bend is between source and target
-    bendY = Math.max(
-      src.y + cornerRadius + 5,
-      Math.min(bendY, tgt.y - cornerRadius - 5)
-    );
+    // Ensure bend is between source and target with room for corners
+    const minBendY = src.y + r + 5;
+    const maxBendY = tgt.y - r - 5;
+    bendY = Math.max(minBendY, Math.min(bendY, maxBendY));
 
-    // For very short vertical distances, use simpler path
-    if (Math.abs(dy) < 60) {
-      const shortBendY = Math.max(src.y + 15, tgt.y - 25);
+    // For very short vertical distances, use a simpler two-corner path
+    if (absDy < 60) {
+      // Calculate a safe bend position
+      const shortBendY = src.y + absDy / 2;
+      const shortR = Math.min(r, absDy / 4 - 1, absDx / 2 - 1);
+
+      if (shortR < 4) {
+        // Too tight for curves, use straight lines with minimal corners
+        return `M ${src.x} ${src.y} 
+                L ${src.x} ${shortBendY}
+                L ${tgt.x} ${shortBendY}
+                L ${tgt.x} ${tgt.y}`;
+      }
+
       return `M ${src.x} ${src.y} 
-              L ${src.x} ${shortBendY - cornerRadius}
-              Q ${src.x} ${shortBendY}, ${src.x + sign * cornerRadius} ${shortBendY}
-              L ${tgt.x - sign * cornerRadius} ${shortBendY}
-              Q ${tgt.x} ${shortBendY}, ${tgt.x} ${shortBendY + cornerRadius}
+              L ${src.x} ${shortBendY - shortR}
+              Q ${src.x} ${shortBendY}, ${src.x + sign * shortR} ${shortBendY}
+              L ${tgt.x - sign * shortR} ${shortBendY}
+              Q ${tgt.x} ${shortBendY}, ${tgt.x} ${shortBendY + shortR}
               L ${tgt.x} ${tgt.y}`;
     }
 
+    // Standard orthogonal path with proper corner handling
     return `M ${src.x} ${src.y} 
-            L ${src.x} ${bendY - cornerRadius}
-            Q ${src.x} ${bendY}, ${src.x + sign * cornerRadius} ${bendY}
-            L ${tgt.x - sign * cornerRadius} ${bendY}
-            Q ${tgt.x} ${bendY}, ${tgt.x} ${bendY + cornerRadius}
+            L ${src.x} ${bendY - r}
+            Q ${src.x} ${bendY}, ${src.x + sign * r} ${bendY}
+            L ${tgt.x - sign * r} ${bendY}
+            Q ${tgt.x} ${bendY}, ${tgt.x} ${bendY + r}
             L ${tgt.x} ${tgt.y}`;
   }
 
   /**
    * Create a fault connector path following Salesforce's pattern
-   * 
+   *
    * The path always follows this structure:
    * 1. Exit horizontally from source right side
    * 2. Turn down (or up) at the fault lane
@@ -127,11 +144,7 @@ export class ConnectorPathService {
    * @param tgt - Target point (left side of target node)
    * @param options - Path options including pre-calculated lane position
    */
-  static createFaultPath(
-    src: Point,
-    tgt: Point,
-    options: FaultPathOptions = {}
-  ): string {
+  static createFaultPath(src: Point, tgt: Point, options: FaultPathOptions = {}): string {
     const { cornerRadius = DEFAULT_CORNER_RADIUS, laneX, faultIndex = 0 } = options;
 
     // Straight horizontal line if nearly horizontal and target is to the right
@@ -142,7 +155,7 @@ export class ConnectorPathService {
     // Calculate the lane X position
     // Use pre-calculated lane if provided, otherwise calculate based on positions
     const calculatedLaneX = laneX ?? this.calculateFaultLaneX(src.x, tgt.x, faultIndex);
-    
+
     const goingDown = tgt.y > src.y;
     const r = cornerRadius;
 
@@ -169,7 +182,7 @@ export class ConnectorPathService {
   /**
    * Create a fault GoTo connector path
    * Used when a fault connector targets a node in the main flow
-   * 
+   *
    * The path structure:
    * 1. Exit horizontally from source right side
    * 2. Travel to the fault lane
@@ -188,19 +201,13 @@ export class ConnectorPathService {
       verticalOffset?: number;
     } = {}
   ): string {
-    const {
-      cornerRadius = DEFAULT_CORNER_RADIUS,
-      laneX,
-      faultIndex = 0,
-      targetInFaultLane = false,
-      verticalOffset = 0,
-    } = options;
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, laneX, faultIndex = 0, targetInFaultLane = false, verticalOffset = 0 } = options;
 
     const r = cornerRadius;
-    
+
     // Calculate lane position
-    const calculatedLaneX = laneX ?? (src.x + FAULT_LANE_CLEARANCE + faultIndex * FAULT_LANE_GAP + verticalOffset * 10);
-    
+    const calculatedLaneX = laneX ?? src.x + FAULT_LANE_CLEARANCE + faultIndex * FAULT_LANE_GAP + verticalOffset * 10;
+
     const goingDown = tgt.y > src.y;
 
     if (targetInFaultLane || tgt.x > calculatedLaneX) {
@@ -244,11 +251,7 @@ export class ConnectorPathService {
    * Calculate the X position of the fault lane
    * Ensures lanes don't overlap and are positioned consistently
    */
-  private static calculateFaultLaneX(
-    srcX: number,
-    tgtX: number,
-    faultIndex: number
-  ): number {
+  private static calculateFaultLaneX(srcX: number, tgtX: number, faultIndex: number): number {
     const baseLaneX = Math.max(srcX, tgtX) + FAULT_LANE_CLEARANCE;
     return baseLaneX + faultIndex * FAULT_LANE_GAP;
   }
@@ -256,10 +259,7 @@ export class ConnectorPathService {
   /**
    * Get the X position of the fault lane for external use (e.g., label positioning)
    */
-  static getFaultLaneX(
-    srcX: number,
-    options: { faultIndex?: number; laneX?: number } = {}
-  ): number {
+  static getFaultLaneX(srcX: number, options: { faultIndex?: number; laneX?: number } = {}): number {
     const { faultIndex = 0, laneX } = options;
     if (laneX !== undefined) {
       return laneX;
@@ -282,11 +282,7 @@ export class ConnectorPathService {
    * @param tgt - Target point (top of loop node)
    * @param options - Path options
    */
-  static createLoopBackPath(
-    src: Point,
-    tgt: Point,
-    options: PathOptions = {}
-  ): string {
+  static createLoopBackPath(src: Point, tgt: Point, options: PathOptions = {}): string {
     const { cornerRadius = 20 } = options;
 
     // Calculate the leftmost X position for the loop-back
@@ -336,14 +332,8 @@ export class ConnectorPathService {
    * @param tgt - Target point
    * @param options - Path options
    */
-  static createBranchDropPath(
-    branchX: number,
-    branchY: number,
-    tgt: Point,
-    options: BranchDropOptions = {}
-  ): string {
-    const { cornerRadius = DEFAULT_CORNER_RADIUS, dropStrategy = "auto" } =
-      options;
+  static createBranchDropPath(branchX: number, branchY: number, tgt: Point, options: BranchDropOptions = {}): string {
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, dropStrategy = "auto" } = options;
     const dx = tgt.x - branchX;
     const dy = tgt.y - branchY;
 
@@ -352,8 +342,7 @@ export class ConnectorPathService {
       return `M ${branchX} ${branchY} L ${tgt.x} ${tgt.y}`;
     }
 
-    const resolvedStrategy =
-      dropStrategy === "auto" ? "vertical-first" : dropStrategy;
+    const resolvedStrategy = dropStrategy === "auto" ? "vertical-first" : dropStrategy;
 
     if (resolvedStrategy === "horizontal-first") {
       const horizontalSign = dx > 0 ? 1 : -1;
@@ -381,12 +370,7 @@ export class ConnectorPathService {
    * @param mergeY - Y position of merge line
    * @param options - Path options
    */
-  static createMergeRisePath(
-    src: Point,
-    mergeX: number,
-    mergeY: number,
-    options: PathOptions = {}
-  ): string {
+  static createMergeRisePath(src: Point, mergeX: number, mergeY: number, options: PathOptions = {}): string {
     const { cornerRadius = DEFAULT_CORNER_RADIUS } = options;
     const dx = mergeX - src.x;
 

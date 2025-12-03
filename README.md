@@ -68,6 +68,14 @@ Working with Salesforce Flows in XML format can be challenging. This extension b
 - **Conditions**: Enhanced visualization of decision conditions and outcomes
 - Fixed an issue where branch lines from different decision nodes could appear connected. Now, decision subtrees are visually distinct, ensuring clarity in complex flows.
 
+### What's New in 1.2.0
+ 
+- **Header Redesign**: Completely redesigned flow header with improved quality status visualization and cleaner layout
+- **Tooltips**: Added comprehensive tooltips across the UI for better user guidance
+- **Error Boundary**: Implemented robust error handling with friendly empty states and loading overlays
+- **Scan Results**: Integrated flow quality scan results directly into the header for immediate visibility
+- **Routing Improvements**: Optimized connector routing for straighter, cleaner lines
+ 
 ### What's New in 1.1.4
 
 - Start nodes that only define scheduled paths now mirror Salesforce's canvas by auto-terminating the "Run Immediately" branch with an End node, so the async lane is the only vertical column
@@ -187,7 +195,7 @@ Access settings via `Preferences > Settings` and search for "SF Flow Visualizer"
 
 ## 🗺️ Roadmap
 
-- [ ] Export flow diagrams as images (PNG/SVG)
+- [x] Export flow diagrams as images (PNG)
 - [ ] Search and filter nodes within flows
 - [ ] Flow comparison view (diff two versions)
 - [ ] Integration with Salesforce CLI for live flows
