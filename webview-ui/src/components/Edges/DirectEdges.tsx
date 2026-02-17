@@ -323,11 +323,11 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     if (faultLanes && faultLanes.size > 0) {
       return faultLanes;
     }
-    
+
     // Fallback: calculate fault lanes from scratch
     const lanes = new Map<string, FaultLaneInfo>();
     const faultEdges = edges.filter(e => e.type === "fault" || e.type === "fault-end");
-    
+
     // Find the maximum X of all non-fault nodes (content area)
     let contentMaxRight = 0;
     nodes.forEach(node => {
@@ -337,7 +337,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         contentMaxRight = Math.max(contentMaxRight, node.x + node.width);
       }
     });
-    
+
     // Sort fault edges by source Y position for consistent lane assignment
     const sortedFaultEdges = [...faultEdges].sort((a, b) => {
       const srcA = nodeMap.get(a.source);
@@ -345,16 +345,16 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
       if (!srcA || !srcB) return 0;
       return srcA.y - srcB.y;
     });
-    
+
     // Assign lanes
     sortedFaultEdges.forEach((edge, index) => {
       const src = nodeMap.get(edge.source);
       const tgt = nodeMap.get(edge.target);
       if (!src || !tgt) return;
-      
+
       const baseLaneX = contentMaxRight + FAULT_LANE_CLEARANCE;
       const laneX = baseLaneX + index * 40;
-      
+
       lanes.set(edge.id, {
         edgeId: edge.id,
         sourceId: edge.source,
@@ -365,7 +365,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         laneX: laneX,
       });
     });
-    
+
     return lanes;
   }, [faultLanes, edges, nodes, nodeMap]);
 
@@ -440,7 +440,7 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
     } else if (isFault) {
       // Regular fault path: use the pre-calculated lane
       const laneX = faultLaneInfo?.laneX ?? (srcRightX + FAULT_LANE_CLEARANCE);
-      
+
       path = ConnectorPathService.createFaultPath(
         { x: srcRightX, y: srcCenterY },
         { x: tgtLeftX, y: tgtCenterY },
@@ -449,9 +449,35 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
       faultLabelX = (srcRightX + laneX) / 2;
       faultLabelY = srcCenterY - 12;
     } else if (isLoopBack) {
+      // Bug 5 fix: Calculate the leftmost X of all nodes in the loop body
+      // so the loop-back connector wraps around any left-side branches
+      let minLeftX: number | undefined;
+      const loopBodyNodes: FlowNode[] = [];
+
+      // Trace backward from source to find all nodes in the loop body
+      const bodyVisited = new Set<string>();
+      const bodyQueue = [edge.source];
+      while (bodyQueue.length > 0) {
+        const nid = bodyQueue.shift()!;
+        if (bodyVisited.has(nid) || nid === edge.target) continue;
+        bodyVisited.add(nid);
+        const n = nodeMap.get(nid);
+        if (n) {
+          loopBodyNodes.push(n);
+          // Walk outgoing edges that stay within the loop
+          const outs = edges.filter((e) => e.source === nid && e.target !== edge.target);
+          outs.forEach((e) => bodyQueue.push(e.target));
+        }
+      }
+
+      if (loopBodyNodes.length > 0) {
+        minLeftX = Math.min(...loopBodyNodes.map((n) => n.x));
+      }
+
       path = ConnectorPathService.createLoopBackPath(
         { x: srcCenterX, y: srcBottomY },
-        { x: tgtCenterX, y: tgtTopY }
+        { x: tgtCenterX, y: tgtTopY },
+        { minLeftX }
       );
     } else if (Math.abs(tgtCenterX - srcCenterX) < 5) {
       // Straight vertical line

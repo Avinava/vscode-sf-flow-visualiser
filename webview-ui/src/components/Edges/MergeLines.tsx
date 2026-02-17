@@ -92,9 +92,10 @@ export function calculateMergeLines(
       })
       .filter((s): s is NonNullable<typeof s> => s !== null);
 
-    // Check if all sources are at the same Y level
-    const sourceYs = new Set(sources.map((s) => Math.round(s.y / 10) * 10));
-    if (sourceYs.size !== 1 || sources.length < 2) return;
+    // Bug 1 fix: Accept sources at any Y depth — each source gets its own
+    // individual rise path to the merge line. The old equal-Y constraint
+    // silently skipped merge lines when branch depths differed.
+    if (sources.length < 2) return;
 
     const xs = sources.map((s) => s.x);
 
