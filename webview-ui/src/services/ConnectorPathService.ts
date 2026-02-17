@@ -14,7 +14,7 @@ import { FAULT_LANE_CLEARANCE } from "../constants/dimensions";
 // CONSTANTS
 // ============================================================================
 
-const DEFAULT_CORNER_RADIUS = 12;
+const DEFAULT_CORNER_RADIUS = 16;
 const FAULT_LANE_GAP = 40; // Gap between stacked fault lanes
 
 // ============================================================================
@@ -320,8 +320,8 @@ export class ConnectorPathService {
    * @param tgt - Target point (top of loop node)
    * @param options - Path options
    */
-  static createLoopBackPath(src: Point, tgt: Point, options: PathOptions & { minLeftX?: number } = {}): string {
-    const { cornerRadius = 20, minLeftX } = options;
+  static createLoopBackPath(src: Point, tgt: Point, options: PathOptions & { minLeftX?: number; wide?: boolean } = {}): string {
+    const { cornerRadius = 20, minLeftX, wide = false } = options;
 
     // Calculate the leftmost X position for the loop-back
     // Use a comfortable offset from the leftmost point (source or target)
@@ -342,6 +342,22 @@ export class ConnectorPathService {
     // Create a smooth path with larger corner radii for elegance
     const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, Math.abs(src.x - leftX) / 2);
 
+    if (wide) {
+      // Fix 10: Wide variant (SF's xe()) — extra initial drop + arc for wider nodes
+      // 9-segment path vs standard 7-segment
+      const initialDrop = r; // Small initial vertical drop before going horizontal
+      return `M ${src.x} ${src.y}
+              L ${src.x} ${src.y + initialDrop}
+              Q ${src.x} ${src.y + initialDrop + r}, ${src.x - r} ${src.y + initialDrop + r}
+              L ${leftX + r} ${src.y + initialDrop + r}
+              Q ${leftX} ${src.y + initialDrop + r}, ${leftX} ${src.y + initialDrop}
+              L ${leftX} ${topY + r}
+              Q ${leftX} ${topY}, ${leftX + r} ${topY}
+              L ${tgt.x - r} ${topY}
+              Q ${tgt.x} ${topY}, ${tgt.x} ${topY + r}
+              L ${tgt.x} ${tgt.y}`;
+    }
+
     return `M ${src.x} ${src.y}
             L ${src.x} ${bottomY - r}
             Q ${src.x} ${bottomY}, ${src.x - r} ${bottomY}
@@ -352,6 +368,98 @@ export class ConnectorPathService {
             L ${tgt.x - r} ${topY}
             Q ${tgt.x} ${topY}, ${tgt.x} ${topY + r}
             L ${tgt.x} ${tgt.y}`;
+  }
+
+  /**
+   * Create a loop "After Last" connector path (goes right and down)
+   *
+   * This creates the exit path from a loop that wraps around the right side,
+   * matching Salesforce's LOOP_AFTER_LAST pattern (ye() function).
+   * The path goes:
+   * 1. Horizontal right from the loop node
+   * 2. Curves down
+   * 3. Goes down along the right side
+   * 4. Curves left
+   * 5. Goes horizontal left
+   * 6. Curves down
+   * 7. Connects to the target below
+   *
+   * @param src - Source point (bottom of loop node)
+   * @param tgt - Target point (top of post-loop node)
+   * @param maxRightX - Maximum X of loop body nodes (for wrapping width)
+   */
+  static createLoopAfterLastPath(
+    src: Point,
+    tgt: Point,
+    options: PathOptions & { maxRightX?: number } = {}
+  ): string {
+    const { cornerRadius = 20, maxRightX } = options;
+
+    // Calculate the rightmost X position for the after-last path
+    const maxX = Math.max(src.x, tgt.x);
+    const offsetX = Math.max(60, Math.abs(src.x - tgt.x) / 2 + 50);
+    let rightX = maxX + offsetX;
+
+    // If there are nodes to the right, ensure the path wraps around them
+    if (maxRightX !== undefined) {
+      rightX = Math.max(rightX, maxRightX + 40);
+    }
+
+    // Vertical positions for the turns
+    const topY = src.y + 30; // Drop down a bit from source
+    const bottomY = tgt.y - 15; // Come up to just above target
+
+    // Create a smooth path with corner radii
+    const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, Math.abs(rightX - src.x) / 2);
+
+    return `M ${src.x} ${src.y}
+            L ${src.x} ${topY - r}
+            Q ${src.x} ${topY}, ${src.x + r} ${topY}
+            L ${rightX - r} ${topY}
+            Q ${rightX} ${topY}, ${rightX} ${topY + r}
+            L ${rightX} ${bottomY - r}
+            Q ${rightX} ${bottomY}, ${rightX - r} ${bottomY}
+            L ${tgt.x + r} ${bottomY}
+            Q ${tgt.x} ${bottomY}, ${tgt.x} ${bottomY + r}
+            L ${tgt.x} ${tgt.y}`;
+  }
+
+  /**
+   * Create a GoTo connector path with horizontal jog at termination
+   *
+   * Based on Salesforce's GoTo connector (he() function).
+   * Similar to a straight path but with a small horizontal jog at the end
+   * to visually distinguish GoTo connectors from regular ones.
+   *
+   * @param src - Source point (bottom of source node)
+   * @param tgt - Target point (top of target node)
+   * @param options - Path options
+   */
+  static createGoToPath(src: Point, tgt: Point, options: PathOptions = {}): string {
+    const { cornerRadius = DEFAULT_CORNER_RADIUS } = options;
+
+    const dy = tgt.y - src.y;
+    const dx = tgt.x - src.x;
+    const r = Math.min(cornerRadius, Math.abs(dy) / 4);
+
+    // If source and target are at different X positions, use orthogonal routing
+    if (Math.abs(dx) > 5) {
+      return this.createOrthogonalPath(src, tgt, { cornerRadius });
+    }
+
+    // Short horizontal jog at the end (≈30px) — SF's characteristic GoTo visual
+    const jogLength = 30;
+    const jogDirection = 1; // Always jog to the right
+
+    if (r < 4 || Math.abs(dy) < jogLength + r * 2) {
+      // Too short for a proper jog, fall back to straight
+      return this.createStraightPath(src, tgt);
+    }
+
+    return `M ${src.x} ${src.y}
+            L ${src.x} ${tgt.y - r}
+            Q ${src.x} ${tgt.y}, ${src.x + jogDirection * r} ${tgt.y}
+            L ${src.x + jogDirection * jogLength} ${tgt.y}`;
   }
 
   /**

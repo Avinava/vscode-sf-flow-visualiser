@@ -474,10 +474,20 @@ export const DirectEdges: React.FC<DirectEdgesProps> = ({
         minLeftX = Math.min(...loopBodyNodes.map((n) => n.x));
       }
 
+      // Fix 10: Use wide variant when loop body has nodes wider than standard
+      const standardWidth = 280; // NODE_WIDTH from dimensions
+      const isWide = loopBodyNodes.some((n) => n.width > standardWidth * 1.5);
+
       path = ConnectorPathService.createLoopBackPath(
         { x: srcCenterX, y: srcBottomY },
         { x: tgtCenterX, y: tgtTopY },
-        { minLeftX }
+        { minLeftX, wide: isWide }
+      );
+    } else if (isGoTo && !showAsRed) {
+      // Fix 8: GoTo connector with horizontal jog at termination
+      path = ConnectorPathService.createGoToPath(
+        { x: srcCenterX, y: srcBottomY },
+        { x: tgtCenterX, y: tgtTopY }
       );
     } else if (Math.abs(tgtCenterX - srcCenterX) < 5) {
       // Straight vertical line

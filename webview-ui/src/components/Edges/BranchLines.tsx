@@ -282,21 +282,43 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
       // Always use horizontal-first for LOOP "For Each" and START scheduled paths.
       const isLoopForEach =
         srcNode.type === "LOOP" && edge.type === "loop-next";
+      const isLoopAfterLast =
+        srcNode.type === "LOOP" && edge.type === "loop-end";
       const isStartScheduledPath =
         srcNode.type === "START" && bl.branches.length > 1;
       const horizontalOffset = Math.abs(targetX - branchX);
       const hasSignificantOffset = horizontalOffset > 170; // ~half column width
-      const dropStrategy =
-        isLoopForEach || isStartScheduledPath || hasSignificantOffset
-          ? "horizontal-first"
-          : "auto";
 
-      const path = ConnectorPathService.createBranchDropPath(
-        branchX,
-        bl.branchLineY,
-        { x: targetX, y: targetY },
-        { dropStrategy }
-      );
+      let path: string;
+
+      if (isLoopAfterLast && Math.abs(targetY - bl.branchLineY) > 60) {
+        // Fix 6: Use LOOP_AFTER_LAST right-side wrapping path
+        // Calculate the max right X of all sibling branches for wrapping width
+        const siblingXs = bl.branches
+          .filter((b) => b.edge.type !== "loop-end")
+          .map((b) => b.targetX + 140); // node half-width
+        const maxRightX = siblingXs.length > 0
+          ? Math.max(...siblingXs)
+          : undefined;
+
+        path = ConnectorPathService.createLoopAfterLastPath(
+          { x: branchX, y: bl.branchLineY },
+          { x: targetX, y: targetY },
+          { maxRightX }
+        );
+      } else {
+        const dropStrategy =
+          isLoopForEach || isStartScheduledPath || hasSignificantOffset
+            ? "horizontal-first"
+            : "auto";
+
+        path = ConnectorPathService.createBranchDropPath(
+          branchX,
+          bl.branchLineY,
+          { x: targetX, y: targetY },
+          { dropStrategy }
+        );
+      }
 
       elements.push(
         <g key={`branch-drop-${edge.id}`}>

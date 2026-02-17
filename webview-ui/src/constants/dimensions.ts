@@ -59,7 +59,7 @@ export const MENU_WIDTH = 300; // --alc-menu-width
 // CONNECTOR GEOMETRY
 // ============================================================================
 
-export const CORNER_RADIUS = 12; // Rounded corners for orthogonal connectors
+export const CORNER_RADIUS = 16; // Rounded corners for orthogonal connectors (SF uses 16)
 export const ARROW_SIZE = 8; // Arrow marker size
-export const CONNECTOR_STROKE_WIDTH = 1.5;
+export const CONNECTOR_STROKE_WIDTH = 2; // SF uses strokeWidth: 4 in edit mode; 2 is balanced for read-only
 export const CONNECTOR_HIGHLIGHT_WIDTH = 3;
