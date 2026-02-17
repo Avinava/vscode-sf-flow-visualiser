@@ -103,7 +103,7 @@ export function calculateBranchLines(
         // This ensures the vertical drop line is perfectly straight
         // The horizontal branch line will naturally expand to cover the full width
         const targetX = tgt.x + tgt.width / 2;
-        
+
         return {
           edge,
           branchX: targetX,
@@ -276,14 +276,20 @@ export const BranchLines: React.FC<BranchLinesProps> = ({
         ? "url(#arrow-highlight)"
         : "url(#arrow)";
 
-      // Use horizontal-first strategy for LOOP "For Each" branches and START scheduled paths
-      // This prevents the unnecessary vertical drop when branches spread horizontally
+      // Bug 3 fix: Use horizontal-first strategy when there is significant
+      // horizontal offset between branch point and target. This prevents
+      // vertical-first drops from colliding with sibling subtrees.
+      // Always use horizontal-first for LOOP "For Each" and START scheduled paths.
       const isLoopForEach =
         srcNode.type === "LOOP" && edge.type === "loop-next";
       const isStartScheduledPath =
         srcNode.type === "START" && bl.branches.length > 1;
+      const horizontalOffset = Math.abs(targetX - branchX);
+      const hasSignificantOffset = horizontalOffset > 170; // ~half column width
       const dropStrategy =
-        isLoopForEach || isStartScheduledPath ? "horizontal-first" : "auto";
+        isLoopForEach || isStartScheduledPath || hasSignificantOffset
+          ? "horizontal-first"
+          : "auto";
 
       const path = ConnectorPathService.createBranchDropPath(
         branchX,

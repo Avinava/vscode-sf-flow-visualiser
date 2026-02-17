@@ -27,6 +27,8 @@ export interface PathOptions {
 
 export interface OrthogonalPathOptions extends PathOptions {
   bendStrategy?: "near-target" | "near-source" | "midpoint";
+  /** Y positions of nodes between source and target to avoid routing through */
+  avoidZones?: { y: number; height: number }[];
 }
 
 export interface BranchDropOptions extends PathOptions {
@@ -62,7 +64,7 @@ export class ConnectorPathService {
    * @param options - Path options including bend strategy
    */
   static createOrthogonalPath(src: Point, tgt: Point, options: OrthogonalPathOptions = {}): string {
-    const { cornerRadius = DEFAULT_CORNER_RADIUS, bendStrategy = "near-target" } = options;
+    const { cornerRadius = DEFAULT_CORNER_RADIUS, bendStrategy = "near-target", avoidZones } = options;
 
     const dx = tgt.x - src.x;
     const dy = tgt.y - src.y;
@@ -77,10 +79,9 @@ export class ConnectorPathService {
     const absDy = Math.abs(dy);
 
     // Clamp corner radius to ensure proper orthogonal corners
-    // The radius must not exceed half the horizontal distance or
-    // leave insufficient room for the vertical segments
-    const maxRadiusForHorizontal = absDx / 2 - 2;
-    const maxRadiusForVertical = absDy / 4 - 2;
+    // Use absDy/3 (not /4) and smaller fudge factor for smoother curves
+    const maxRadiusForHorizontal = absDx / 2 - 1;
+    const maxRadiusForVertical = absDy / 3 - 1;
     const r = Math.max(4, Math.min(cornerRadius, maxRadiusForHorizontal, maxRadiusForVertical));
 
     // Determine bend Y position based on strategy
@@ -100,8 +101,45 @@ export class ConnectorPathService {
     const maxBendY = tgt.y - r - 5;
     bendY = Math.max(minBendY, Math.min(bendY, maxBendY));
 
+    // Bug 2 fix: If avoidZones are provided, shift bendY to the largest
+    // gap between obstacles so the horizontal segment doesn't cross a node
+    if (avoidZones && avoidZones.length > 0) {
+      const zones = avoidZones
+        .filter((z) => z.y > src.y && z.y + z.height < tgt.y)
+        .sort((a, b) => a.y - b.y);
+
+      if (zones.length > 0) {
+        // Build list of gaps: before first zone, between zones, after last zone
+        const gaps: { start: number; end: number }[] = [];
+        gaps.push({ start: src.y + r + 5, end: zones[0].y - 5 });
+        for (let i = 0; i < zones.length - 1; i++) {
+          gaps.push({ start: zones[i].y + zones[i].height + 5, end: zones[i + 1].y - 5 });
+        }
+        gaps.push({ start: zones[zones.length - 1].y + zones[zones.length - 1].height + 5, end: tgt.y - r - 5 });
+
+        // Check if current bendY falls inside an obstacle
+        const isInsideObstacle = zones.some((z) => bendY >= z.y - 5 && bendY <= z.y + z.height + 5);
+
+        if (isInsideObstacle) {
+          // Find the largest valid gap and place bendY at its center
+          let bestGap: { start: number; end: number } | null = null;
+          let bestSize = 0;
+          for (const gap of gaps) {
+            const size = gap.end - gap.start;
+            if (size > bestSize && size > r * 2) {
+              bestSize = size;
+              bestGap = gap;
+            }
+          }
+          if (bestGap) {
+            bendY = (bestGap.start + bestGap.end) / 2;
+          }
+        }
+      }
+    }
+
     // For very short vertical distances, use a simpler two-corner path
-    if (absDy < 60) {
+    if (absDy < 80) {
       // Calculate a safe bend position
       const shortBendY = src.y + absDy / 2;
       const shortR = Math.min(r, absDy / 4 - 1, absDx / 2 - 1);
@@ -282,21 +320,27 @@ export class ConnectorPathService {
    * @param tgt - Target point (top of loop node)
    * @param options - Path options
    */
-  static createLoopBackPath(src: Point, tgt: Point, options: PathOptions = {}): string {
-    const { cornerRadius = 20 } = options;
+  static createLoopBackPath(src: Point, tgt: Point, options: PathOptions & { minLeftX?: number } = {}): string {
+    const { cornerRadius = 20, minLeftX } = options;
 
     // Calculate the leftmost X position for the loop-back
     // Use a comfortable offset from the leftmost point (source or target)
     const minX = Math.min(src.x, tgt.x);
     const offsetX = Math.max(60, Math.abs(src.x - tgt.x) / 2 + 50);
-    const leftX = minX - offsetX;
+    let leftX = minX - offsetX;
+
+    // Bug 5 fix: If there are nodes to the left (e.g., left-side branches
+    // in a nested decision), ensure the loop-back wraps around them
+    if (minLeftX !== undefined) {
+      leftX = Math.min(leftX, minLeftX - 40);
+    }
 
     // Vertical positions for the turns
     const bottomY = src.y + 30; // Drop down a bit from source
     const topY = tgt.y - 15; // Come up to just above target
 
     // Create a smooth path with larger corner radii for elegance
-    const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, offsetX / 2);
+    const r = Math.min(cornerRadius, Math.abs(bottomY - topY) / 4, Math.abs(src.x - leftX) / 2);
 
     return `M ${src.x} ${src.y}
             L ${src.x} ${bottomY - r}
