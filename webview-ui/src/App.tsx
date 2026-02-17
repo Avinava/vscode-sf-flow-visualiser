@@ -35,7 +35,6 @@ import { BoundingBox } from "./hooks/useCanvasInteraction";
 
 import { getVSCodeApi } from "./utils/vscodeApi";
 
-// ... (keep existing imports)
 import { toPng } from "html-to-image";
 
 // ============================================================================
@@ -51,7 +50,7 @@ const AppContent: React.FC = () => {
   const [autoOpenViewerEnabled, setAutoOpenViewerEnabled] = useState(true);
   const [qualityMetrics, setQualityMetrics] =
     useState<FlowQualityMetrics | null>(null);
-  
+
   // Track when a new flow is loaded to trigger auto-center
   const shouldAutoCenter = useRef(false);
 
@@ -397,7 +396,7 @@ const AppContent: React.FC = () => {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Loading Overlay */}
         {isLoading && <LoadingOverlay message="Analyzing flow..." />}
-        
+
         {/* Empty State */}
         {!isLoading && visibleNodes.length === 0 && <EmptyState />}
 

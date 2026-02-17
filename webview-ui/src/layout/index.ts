@@ -11,7 +11,6 @@ export type { AutoLayoutOptions, LayoutResult, FaultLaneInfo } from "./treeLayou
 // Layout configuration
 export {
   DEFAULT_LAYOUT_CONFIG,
-  CARD_LAYOUT_CONFIG,
   FAULT_INDEX,
   FOR_EACH_INDEX,
   START_IMMEDIATE_INDEX,
@@ -31,7 +30,6 @@ export {
   findParentElement,
   areAllBranchesTerminals,
   isGoingBackToAncestorLoop,
-  getStyleFromGeometry,
   hasGoToOnNext,
   hasGoToOnBranchHead,
 } from "./layoutHelpers";

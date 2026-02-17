@@ -54,19 +54,6 @@ export type EdgeType =
   | "fault-end" // Fault path that leads to END
   | "goto"; // GoTo connector (dashed in SF)
 
-/**
- * Connector label types from Salesforce
- */
-export type ConnectorLabelType =
-  | "NONE"
-  | "BRANCH"
-  | "FAULT"
-  | "LOOP_FOR_EACH"
-  | "LOOP_AFTER_LAST";
-
-// ============================================================================
-// GEOMETRY
-// ============================================================================
 
 /**
  * Geometry type for positioning - matches Salesforce pattern
@@ -222,55 +209,13 @@ export interface FlowEdge {
   type: EdgeType;
   // Extended properties from Salesforce
   childSource?: string; // Reference to child for decision branches
-  labelType?: ConnectorLabelType;
+  labelType?: string;
   isGoTo?: boolean;
   isFault?: boolean;
   isHighlighted?: boolean;
   operationType?: "delete" | "cut";
 }
 
-/**
- * Connection source - identifies where a connection originates
- * Based on Salesforce's source pattern in alcEvents
- */
-export interface ConnectionSource {
-  guid: string;
-  childIndex?: number;
-}
-
-// ============================================================================
-// LAYOUT
-// ============================================================================
-
-/**
- * Layout node used during auto-layout calculation
- * Based on Salesforce's nodeLayoutMap pattern
- */
-export interface LayoutNode {
-  id: string;
-  node: FlowNode;
-  children: LayoutBranch[];
-  mergePoint?: string;
-  depth: number;
-  subtreeWidth: number;
-  x: number;
-  y: number;
-  parent?: LayoutNode;
-  branchIndex?: number;
-}
-
-/**
- * Layout branch - represents a branch path during layout
- */
-export interface LayoutBranch {
-  label?: string;
-  target: string;
-  edge: FlowEdge;
-  nodes: LayoutNode[];
-  width: number;
-  depth: number;
-  terminates: boolean;
-}
 
 /**
  * Layout configuration - based on Salesforce's getDefaultLayoutConfig
@@ -328,75 +273,6 @@ export interface ParsedFlow {
   edges: FlowEdge[];
   metadata: FlowMetadata;
   xmlContent?: string; // Full flow XML content for quality analysis
-}
-
-// ============================================================================
-// RENDER CONTEXT
-// ============================================================================
-
-/**
- * Canvas mode - based on Salesforce AutoLayoutCanvasMode
- */
-export type CanvasMode = "default" | "selection" | "reconnection" | "cut";
-
-/**
- * Canvas context for rendering
- */
-export interface CanvasContext {
-  mode: CanvasMode;
-  menu?: MenuInfo | null;
-  highlightInfo?: HighlightInfo | null;
-  cutInfo?: CutInfo;
-}
-
-/**
- * Menu information
- */
-export interface MenuInfo {
-  type: "node" | "connector";
-  source: ConnectionSource;
-  autoFocus: boolean;
-}
-
-/**
- * Highlight information for GoTo connections
- */
-export interface HighlightInfo {
-  gotos: ConnectionSource[];
-}
-
-/**
- * Cut operation information
- */
-export interface CutInfo {
-  guids: string[];
-  childIndexToKeep?: number;
-}
-
-// ============================================================================
-// SVG PATH INFO
-// ============================================================================
-
-/**
- * SVG connector path information
- */
-export interface ConnectorSvgInfo {
-  path: string;
-  geometry: Geometry;
-  endLocation?: Point;
-}
-
-/**
- * Connector render info
- */
-export interface ConnectorRenderInfo {
-  key: string;
-  connectorInfo: FlowEdge;
-  style: string;
-  className: string;
-  svgInfo: ConnectorSvgInfo;
-  labelOffsetX?: number;
-  labelOffsetY?: number;
 }
 
 // ============================================================================
