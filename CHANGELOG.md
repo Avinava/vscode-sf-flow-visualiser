@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.2.2] - 2025-12-04
+
+### Changed
+
+- **Auto-Open Disabled by Default**: The Flow Viewer no longer opens automatically when navigating to `.flow-meta.xml` files. Use the graph icon in the editor title bar, the right-click context menu, or the Command Palette ("SFFV: Visualize Flow") to open the visualizer on demand. To restore the previous behavior, enable `sf-flow-visualizer.autoOpenFlowViewer` in Settings.
+
 ## [1.2.0] - 2025-12-03
  
 ### Added

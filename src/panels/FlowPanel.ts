@@ -292,7 +292,7 @@ export class FlowPanel {
       vscode.window.showErrorMessage(
         `Unable to update Flow Viewer auto-open preference: ${error}`
       );
-      const currentValue = config.get<boolean>("autoOpenFlowViewer", true);
+      const currentValue = config.get<boolean>("autoOpenFlowViewer", false);
       FlowPanel.setAutoOpenPreference(currentValue);
     });
   }

@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
   const getAutoOpenSetting = () => {
     return vscode.workspace
       .getConfiguration("sf-flow-visualizer")
-      .get<boolean>("autoOpenFlowViewer", true);
+      .get<boolean>("autoOpenFlowViewer", false);
   };
 
   let autoOpenEnabled = getAutoOpenSetting();
