@@ -537,6 +537,7 @@ function parseFlowElement(el: Element, type: NodeType): ElementResult {
       externalService: "EXTERNAL_SERVICE",
       chatterPost: "POST_TO_CHATTER",
       sendEmail: "SEND_EMAIL",
+      rollback: "ROLLBACK",
     };
     finalType = actionTypeMap[elementData.actionType as string] || type;
   }

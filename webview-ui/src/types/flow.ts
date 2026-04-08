@@ -41,7 +41,8 @@ export type NodeType =
   | "SUBMIT_FOR_APPROVAL" // Approval submission
   | "CREATE_APPROVAL_REQUEST" // Approval request creation
   | "EXTERNAL_SERVICE" // External service call
-  | "QUICK_ACTION"; // Quick action
+  | "QUICK_ACTION" // Quick action
+  | "ROLLBACK"; // Rollback Records
 
 /**
  * Connector/Edge types following Salesforce patterns

@@ -63,6 +63,7 @@ export const NODE_COLORS = {
 
   // Utilities
   customError: "#dc2626", // Dark Red
+  rollback: "#dc2626", // Dark Red
   transform: "#10b981", // Emerald
   collectionProcessor: "#f59e0b", // Amber
 

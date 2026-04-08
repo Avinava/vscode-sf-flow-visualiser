@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable MD024 -->
 
+## [1.3.0] - 2026-04-08
+
+### Added
+
+- **Rollback Records Element**: Added support for the Salesforce Flow Rollback Records element (`actionType: rollback`). Now renders with a dedicated ↺ icon and "Rollback Records" label instead of the generic Action node. ([#10](https://github.com/Avinava/vscode-sf-flow-visualiser/issues/10))
+
 ## [1.2.2] - 2025-12-04
 
 ### Changed

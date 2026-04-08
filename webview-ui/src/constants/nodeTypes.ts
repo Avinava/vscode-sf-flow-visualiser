@@ -28,6 +28,7 @@ import {
   CheckCircle,
   Globe,
   MousePointer,
+  RotateCcw,
 } from "lucide-react";
 import type { NodeConfigMap } from "../types";
 
@@ -212,6 +213,12 @@ export const NODE_CONFIG: NodeConfigMap = {
     color: "#f97316", // Orange
     icon: MousePointer,
     label: "Quick Action",
+    iconShape: "circle",
+  },
+  ROLLBACK: {
+    color: "#dc2626", // Dark Red — destructive/undo action
+    icon: RotateCcw,
+    label: "Rollback Records",
     iconShape: "circle",
   },
 };
